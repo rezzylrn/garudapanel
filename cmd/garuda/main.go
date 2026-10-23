@@ -25,11 +25,12 @@ Usage:
   garuda panel  [--addr :8080] [--db garuda-panel.db]
   garuda daemon --panel http://host:8080 --join TOKEN
   garuda admin reset-password [--db garuda-panel.db]
+  garuda admin provision-node --db garuda-panel.db --name NAME [--memory-mb N] [--disk-mb N]
 
 Commands:
   panel   jalankan panel HTTP (API + UI)
   daemon  jalankan daemon node (wajib --join untuk registrasi pertama)
-  admin   manajemen user admin (subcommand: reset-password)
+  admin   manajemen admin (subcommand: reset-password, provision-node)
 `
 
 func main() {
@@ -120,12 +121,14 @@ func cmdDaemon(args []string) {
 
 func cmdAdmin(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintf(os.Stderr, "Usage: garuda admin <reset-password> [options]\n")
+		fmt.Fprintf(os.Stderr, "Usage: garuda admin <reset-password|provision-node> [options]\n")
 		os.Exit(2)
 	}
 	switch args[0] {
 	case "reset-password":
 		cmdAdminResetPassword(args[1:])
+	case "provision-node":
+		cmdAdminProvisionNode(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "garuda admin: unknown command %q\n", args[0])
 		os.Exit(1)
@@ -185,6 +188,78 @@ func cmdAdminResetPassword(args []string) {
 	}
 
 	fmt.Printf("ADMIN RESET -> username: admin password: %s\n", password)
+}
+
+func cmdAdminProvisionNode(args []string) {
+	fs := flag.NewFlagSet("admin provision-node", flag.ExitOnError)
+	dbPath := fs.String("db", "garuda-panel.db", "sqlite database path")
+	name := fs.String("name", "", "node name")
+	memMB := fs.Int64("memory-mb", 8192, "memory limit in MB")
+	diskMB := fs.Int64("disk-mb", 102400, "disk limit in MB")
+	_ = fs.Parse(args)
+
+	if *name == "" {
+		fatal("admin provision-node: --name is required")
+	}
+
+	sqlDB, err := db.Open(*dbPath)
+	if err != nil {
+		fatal("db: %v", err)
+	}
+	defer sqlDB.Close()
+
+	// 1. Pastikan location default ada (kalau tabel locations kosong: INSERT short_code='local', description='Lokal (otomatis)')
+	var locID int64
+	err = sqlDB.QueryRow(`SELECT id FROM locations ORDER BY id ASC LIMIT 1`).Scan(&locID)
+	if err == sql.ErrNoRows {
+		res, err := sqlDB.Exec(`INSERT INTO locations (short_code, description) VALUES ('local', 'Lokal (otomatis)')`)
+		if err != nil {
+			fatal("insert default location: %v", err)
+		}
+		locID, err = res.LastInsertId()
+		if err != nil {
+			fatal("get default location id: %v", err)
+		}
+	} else if err != nil {
+		fatal("query locations: %v", err)
+	}
+
+	// 2. Cari node by name: kalau belum ada, INSERT
+	var nodeID int64
+	err = sqlDB.QueryRow(`SELECT id FROM nodes WHERE name = ?`, *name).Scan(&nodeID)
+	if err == sql.ErrNoRows {
+		fqdn, err := os.Hostname()
+		if err != nil || fqdn == "" {
+			fqdn = "localhost"
+		}
+		res, err := sqlDB.Exec(`INSERT INTO nodes (location_id, name, fqdn, memory_limit_mb, disk_limit_mb) VALUES (?,?,?,?,?)`,
+			locID, *name, fqdn, *memMB, *diskMB)
+		if err != nil {
+			fatal("insert node: %v", err)
+		}
+		nodeID, err = res.LastInsertId()
+		if err != nil {
+			fatal("get node id: %v", err)
+		}
+	} else if err != nil {
+		fatal("query node: %v", err)
+	}
+
+	// 3. Generate join token via auth.NewToken(), INSERT ke node_join_tokens
+	rawToken, tokenHash, err := auth.NewToken()
+	if err != nil {
+		fatal("generate token: %v", err)
+	}
+
+	expiresAt := time.Now().Add(15 * time.Minute).Unix()
+	_, err = sqlDB.Exec(`INSERT INTO node_join_tokens (token_hash, node_id, expires_at, used) VALUES (?,?,?,0)`,
+		tokenHash, nodeID, expiresAt)
+	if err != nil {
+		fatal("insert join token: %v", err)
+	}
+
+	// 4. Print HANYA raw token ke stdout (satu baris)
+	fmt.Println(rawToken)
 }
 
 // bootstrapAdmin buat user admin pertama kalau belum ada user sama sekali.

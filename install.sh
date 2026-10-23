@@ -326,10 +326,12 @@ EOF
 
     PANEL_SUMMARY_ADDR="${listen_addr}"
     PANEL_BOOTSTRAP_OUTPUT="${bootstrap_output}"
+    PANEL_DB_PATH="${db_path}"
 }
 
 # 7. Setup Daemon
 setup_daemon() {
+    local install_mode="${1:-daemon}"
     echo ""
     log_info "Configuring GarudaPanel Daemon (Node Worker)..."
     ensure_docker
@@ -337,20 +339,61 @@ setup_daemon() {
     read -rp "Panel URL [default: http://127.0.0.1:8080]: " input_panel_url
     local panel_url="${input_panel_url:-http://127.0.0.1:8080}"
 
-    read -rp "Join token from Panel [leave empty if node is already registered]: " input_join_token
-
     read -rp "Daemon data directory [default: /var/lib/garudapanel]: " input_daemon_dir
     local daemon_data_dir="${input_daemon_dir:-/var/lib/garudapanel}"
 
     mkdir -p "${daemon_data_dir}/volumes"
 
-    # One-shot join if token provided
     local has_token=0
     if [ -f "${daemon_data_dir}/node-token" ]; then
         has_token=1
         log_info "Existing node-token found at ${daemon_data_dir}/node-token."
     fi
 
+    local input_join_token=""
+
+    if [ "${install_mode}" = "both" ]; then
+        if [ "${has_token}" -eq 1 ]; then
+            log_info "Node is already registered (node-token exists). Skipping automatic node provisioning."
+        else
+            log_info "Waiting for GarudaPanel to be healthy before auto-joining daemon..."
+            local wait_secs=0
+            local max_wait=30
+            local healthy=0
+            while [ "${wait_secs}" -lt "${max_wait}" ]; do
+                if curl -sf "http://127.0.0.1:8080/" >/dev/null 2>&1; then
+                    healthy=1
+                    break
+                fi
+                sleep 1
+                wait_secs=$((wait_secs + 1))
+            done
+
+            if [ "${healthy}" -eq 1 ]; then
+                log_ok "GarudaPanel is healthy."
+            else
+                log_warn "Panel did not respond healthy on http://127.0.0.1:8080/ within ${max_wait}s. Attempting provisioning anyway..."
+            fi
+
+            local node_name="node-$(hostname)"
+            local db_target="${PANEL_DB_PATH:-/var/lib/garudapanel/garuda-panel.db}"
+            log_info "Auto-provisioning node '${node_name}' via DB (${db_target})..."
+            input_join_token=$("${GARUDA_BIN}" admin provision-node --db "${db_target}" --name "${node_name}" 2>/dev/null || true)
+
+            if [ -n "${input_join_token}" ]; then
+                log_ok "Generated join token for '${node_name}'."
+            else
+                log_warn "Failed to auto-provision node via 'garuda admin provision-node'."
+            fi
+        fi
+    else
+        if [ "${has_token}" -eq 1 ]; then
+            log_info "Node already has node-token. Press enter to skip join, or provide a new token."
+        fi
+        read -rp "Join token from Panel [leave empty if node is already registered]: " input_join_token
+    fi
+
+    # One-shot join if token provided
     if [ -n "${input_join_token}" ]; then
         log_info "Performing one-shot node registration with join token..."
         # Daemon one-shot join: run with timeout to register and persist node-token
@@ -503,11 +546,11 @@ main() {
             setup_panel
             ;;
         daemon)
-            setup_daemon
+            setup_daemon "daemon"
             ;;
         both)
             setup_panel
-            setup_daemon
+            setup_daemon "both"
             ;;
     esac
 
