@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"garudapanel/internal/dockerrt"
+	"garudapanel/internal/filecore"
 )
 
 // PowerAction aksi power yang dikenal daemon.
@@ -51,6 +52,8 @@ type Supervisor struct {
 	rt        dockerrt.ContainerRuntime
 	cfg       SupervisorConfig
 	send      SendFrame // kirim frame ke panel (diset setiap reconnect)
+	volumes   *filecore.Volumes
+	fileIO    *fileIORegistry
 	mu        sync.Mutex
 	servers   map[string]*serverState       // uuid → state
 	consoles  map[string]*consoleHub        // uuid → hub console
@@ -66,6 +69,8 @@ func NewSupervisor(rt dockerrt.ContainerRuntime, cfg SupervisorConfig) *Supervis
 	return &Supervisor{
 		rt:        rt,
 		cfg:       cfg,
+		volumes:   filecore.NewVolumes(nil), // osFS asli; test injeksi factory fake
+		fileIO:    newFileIORegistry(),
 		servers:   map[string]*serverState{},
 		consoles:  map[string]*consoleHub{},
 		rings:     map[string]*RingBuffer{},
@@ -73,9 +78,18 @@ func NewSupervisor(rt dockerrt.ContainerRuntime, cfg SupervisorConfig) *Supervis
 	}
 }
 
-// RegisterServer: daemon tahu ada server dengan uuid + spec.
-// Dipanggil saat panel kirim servers.sync (atau daemon boot dari DB, fase 3).
+// Register: daemon tahu ada server dengan uuid + spec. ImageUser kosong
+// di-resolve dari image config via runtime (SPEC §7.4) — fallback 1000:1000.
 func (s *Supervisor) Register(uuid string, spec dockerrt.ContainerSpec) {
+	if spec.ImageUser == "" {
+		if p, ok := s.rt.(dockerrt.ImageUserProvider); ok {
+			if user, err := p.ImageUser(context.Background(), spec.Image); err == nil {
+				spec.ImageUser = user
+			} else {
+				log.Printf("register %s: image user resolve: %v (fallback 1000:1000)", uuid, err)
+			}
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if st, ok := s.servers[uuid]; ok {
@@ -161,6 +175,8 @@ func (s *Supervisor) HandleFrame(f Frame) {
 				CPUPercent int      `json:"cpu_percent"`
 				StopSignal string   `json:"stop_signal"`
 				Port       int      `json:"port"`
+				DiskMB     int64    `json:"disk_mb"`
+				ImageUser  string   `json:"image_user"`
 			} `json:"servers"`
 		}
 		if err := unmarshal(f.Payload, &p); err != nil {
@@ -177,9 +193,52 @@ func (s *Supervisor) HandleFrame(f Frame) {
 				CPUPercent: sv.CPUPercent,
 				BindPort:   sv.Port,
 				HostPath:   s.volumeFor(sv.UUID),
+				DiskMB:     sv.DiskMB,
+				ImageUser:  sv.ImageUser,
 			})
 		}
 		log.Printf("servers sync: %d registered", len(p.Servers))
+
+	case f.Ch == "rpc" && f.Type == "file":
+		// file manager ops (list/mkdir/delete/rename/extract/usage) —
+		// goroutine terpisah: operasi disk bisa lambat, jangan blok read loop.
+		// Reply: rpc:res dengan req_id dari request (pencocokan di panel).
+		go func(payload []byte) {
+			var reqID string
+			var p struct {
+				ReqID string `json:"req_id"`
+			}
+			if unmarshal(payload, &p) == nil {
+				reqID = p.ReqID
+			}
+			res, err := s.handleFileRPC(payload)
+			resp := map[string]any{"req_id": reqID}
+			if err != nil {
+				log.Printf("file rpc: %v", err)
+				resp["error"] = err.Error()
+			} else {
+				resp["result"] = res
+			}
+			_ = s.sendFrame(Frame{Ch: "rpc", Type: "rpc:res", Payload: mustJSON(resp)})
+		}(f.Payload)
+
+	case f.Ch == "rpc" && f.Type == "file:write-begin":
+		go func(payload []byte) {
+			if err := s.handleWriteBegin(payload); err != nil {
+				log.Printf("file write-begin: %v", err)
+			}
+		}(f.Payload)
+	case f.Ch == "rpc" && f.Type == "file:write-chunk":
+		// chunk di pump langsung (backpressure blocking): TIDAK di goroutine
+		// terpisah, supaya urutan chunk terjaga. Bila pipe penuh, read loop
+		// menunggu — panel mengirim dengan flow control.
+		if err := s.handleWriteChunk(f.Payload); err != nil {
+			log.Printf("file write-chunk: %v", err)
+		}
+	case f.Ch == "rpc" && f.Type == "file:write-end":
+		go s.handleWriteEnd(f.Payload)
+	case f.Ch == "rpc" && f.Type == "file:read-begin":
+		go s.handleReadBegin(f.Payload)
 
 	case f.Ch == "rpc" && f.Type == "replay":
 		var p struct {
