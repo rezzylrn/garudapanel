@@ -21,16 +21,16 @@ const (
 
 // ContainerSpec konfigurasi create container (dipakai daemon saat create).
 type ContainerSpec struct {
-	Ref          string            // uuid server — dipakai sebagai nama container (garuda-<uuid>)
-	Image        string            // docker image
-	Cmd          []string          // argv
-	Env          []string          // KEY=value
-	MemoryMB     int64             // limit memori (0 = tanpa limit)
-	CPUPercent   int               // limit CPU dalam persen satu core (0 = tanpa limit)
-	StopSignal   string            // mis. "SIGTERM" (default SIGTERM)
-	BindPort     int               // port host yang dipublish (0 = tidak)
-	HostPath     string            // volume data server di host (kosong = tanpa volume)
-	ContainerUID int               // UID di dalam container (untuk chown file, fase 3)
+	Ref          string   // uuid server — dipakai sebagai nama container (garuda-<uuid>)
+	Image        string   // docker image
+	Cmd          []string // argv
+	Env          []string // KEY=value
+	MemoryMB     int64    // limit memori (0 = tanpa limit)
+	CPUPercent   int      // limit CPU dalam persen satu core (0 = tanpa limit)
+	StopSignal   string   // mis. "SIGTERM" (default SIGTERM)
+	BindPort     int      // port host yang dipublish (0 = tidak)
+	HostPath     string   // volume data server di host (kosong = tanpa volume)
+	ContainerUID int      // UID di dalam container (untuk chown file, fase 3)
 }
 
 // ExecResult hasil ExecAttach: exit code proses di dalam container.

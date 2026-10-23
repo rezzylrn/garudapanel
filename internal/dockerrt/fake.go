@@ -9,12 +9,12 @@ import (
 
 // FakeRuntime: implementasi ContainerRuntime in-memory untuk unit test daemon
 // tanpa Docker. Perilaku dibuat deterministic dan sesuai kontrak:
-// - Create menyimpan spec; Start/Stop/Kill mengubah state.
-// - ExecAttach mengalirkan data dari FakeOutput (seolah stdout container)
-//   ke out, dan menyalin apa pun yang ditulis ke in ke OnExec callback.
-// - StatsOnce mengembalikan snapshot dari StatsFn (kalau diset).
-// - Semua method reentrant-safe (mutex) karena daemon memanggil dari
-//   beberapa goroutine.
+//   - Create menyimpan spec; Start/Stop/Kill mengubah state.
+//   - ExecAttach mengalirkan data dari FakeOutput (seolah stdout container)
+//     ke out, dan menyalin apa pun yang ditulis ke in ke OnExec callback.
+//   - StatsOnce mengembalikan snapshot dari StatsFn (kalau diset).
+//   - Semua method reentrant-safe (mutex) karena daemon memanggil dari
+//     beberapa goroutine.
 type FakeRuntime struct {
 	mu sync.Mutex
 	// state per ref: offline/starting/running/stopping
@@ -199,6 +199,11 @@ func (f *FakeRuntime) StatsOnce(_ context.Context, ref string) (StatsSnapshot, e
 		return fn(ref), nil
 	}
 	return StatsSnapshot{}, nil
+}
+
+// Events: fake tidak punya event async (test pakai SetState manual).
+func (f *FakeRuntime) Events(_ context.Context, ch chan<- StateEvent) {
+	close(ch)
 }
 
 type fakeHandle struct{ ctx context.Context }

@@ -48,13 +48,13 @@ type serverState struct {
 // Daemon satu-satunya yang boleh mengubah state container (SPEC §7.1):
 // semua perubahan lewat Supervisor.Power.
 type Supervisor struct {
-	rt       dockerrt.ContainerRuntime
-	cfg      SupervisorConfig
-	send     SendFrame // kirim frame ke panel (diset setiap reconnect)
-	mu       sync.Mutex
-	servers  map[string]*serverState // uuid → state
-	consoles map[string]*consoleHub  // uuid → hub console
-	rings    map[string]*RingBuffer  // uuid → ring buffer log
+	rt        dockerrt.ContainerRuntime
+	cfg       SupervisorConfig
+	send      SendFrame // kirim frame ke panel (diset setiap reconnect)
+	mu        sync.Mutex
+	servers   map[string]*serverState       // uuid → state
+	consoles  map[string]*consoleHub        // uuid → hub console
+	rings     map[string]*RingBuffer        // uuid → ring buffer log
 	statsCtxs map[string]context.CancelFunc // uuid → cancel loop stats
 }
 
@@ -64,11 +64,11 @@ func NewSupervisor(rt dockerrt.ContainerRuntime, cfg SupervisorConfig) *Supervis
 		cfg.StatsInterval = 2 * time.Second
 	}
 	return &Supervisor{
-		rt:       rt,
-		cfg:      cfg,
-		servers:  map[string]*serverState{},
-		consoles: map[string]*consoleHub{},
-		rings:    map[string]*RingBuffer{},
+		rt:        rt,
+		cfg:       cfg,
+		servers:   map[string]*serverState{},
+		consoles:  map[string]*consoleHub{},
+		rings:     map[string]*RingBuffer{},
 		statsCtxs: map[string]context.CancelFunc{},
 	}
 }
@@ -103,8 +103,6 @@ func (s *Supervisor) Status(uuid string) string {
 	return dockerrt.StateOffline
 }
 
-// AttachWS dipanggil setiap koneksi WS panel hidup: supervisor mulai
-// mengirim frame via `send`.
 func (s *Supervisor) Attach(send SendFrame) {
 	s.mu.Lock()
 	s.send = send
@@ -155,14 +153,14 @@ func (s *Supervisor) HandleFrame(f Frame) {
 		// panel kirim daftar server milik node ini saat daemon connect.
 		var p struct {
 			Servers []struct {
-				UUID       string `json:"uuid"`
-				Image      string `json:"image"`
+				UUID       string   `json:"uuid"`
+				Image      string   `json:"image"`
 				Cmd        []string `json:"cmd"`
 				Env        []string `json:"env"`
-				MemoryMB   int64  `json:"memory_mb"`
-				CPUPercent int    `json:"cpu_percent"`
-				StopSignal string `json:"stop_signal"`
-				Port       int    `json:"port"`
+				MemoryMB   int64    `json:"memory_mb"`
+				CPUPercent int      `json:"cpu_percent"`
+				StopSignal string   `json:"stop_signal"`
+				Port       int      `json:"port"`
 			} `json:"servers"`
 		}
 		if err := unmarshal(f.Payload, &p); err != nil {

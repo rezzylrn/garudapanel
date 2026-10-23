@@ -25,6 +25,9 @@ func Routes(s *Server) http.Handler {
 	r.Post("/api/daemon/join", s.handleDaemonJoin)
 	r.Get("/api/daemon/ws", daemonhub.WSHandler(s.DB, s.Hub))
 
+	// server user routes: power + console WS + token console
+	installServerRoutes(s, r)
+
 	// auth
 	r.Post("/api/auth/login", s.handleLogin)
 	r.Post("/api/auth/logout", wrapH(s.Sessions.RequireAuth(http.HandlerFunc(s.handleLogout))))
@@ -75,6 +78,16 @@ func Routes(s *Server) http.Handler {
 	r.Get("/*", staticHandler())
 
 	return r
+}
+
+// installUserRoutes: rute user (owner/admin) — power, console WS, stats.
+func installServerRoutes(s *Server, r chi.Router) {
+	r.Route("/api/servers/{id}", func(sr chi.Router) {
+		sr.Use(s.Sessions.RequireAuth)
+		sr.Post("/power", s.handleServerPower)
+		sr.Post("/console-token", s.handleConsoleToken)
+		sr.Get("/ws", s.handleServerWS) // auth via frame pertama (token 60s)
+	})
 }
 
 // wrapH: HandlerFunc → http.Handler (helper komposisi middleware chi).

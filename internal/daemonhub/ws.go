@@ -2,6 +2,7 @@
 package daemonhub
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -12,13 +13,6 @@ import (
 
 	"garudapanel/internal/auth"
 )
-
-// Frame: format pesan WS panel↔daemon (SPEC §4).
-type Frame struct {
-	Ch      string          `json:"ch"`
-	Type    string          `json:"type"`
-	Payload json.RawMessage `json:"payload,omitempty"`
-}
 
 // WSHandler mengembalikan handler endpoint /api/daemon/ws.
 // Daemon auth: node token long-lived via header X-Node-Token.
@@ -44,7 +38,7 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: []string{"*"}})
 		if err != nil {
-			logf("accept: %v", err)
+			log.Printf("hub: accept: %v", err)
 			return
 		}
 		defer conn.Close(websocket.StatusInternalError, "closing")
@@ -52,17 +46,38 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 		c := &Conn{NodeID: nodeID, Name: name}
 		wasOffline := hub.Add(c)
 		if wasOffline {
-			logf("node %d (%s) online", nodeID, name)
+			log.Printf("hub: node %d (%s) online", nodeID, name)
 		}
 		defer func() {
+			c.BindSend(nil) // hentikan kirim: frame baru → ErrNotOnline
 			if hub.Remove(nodeID, c) {
-				logf("node %d (%s) offline", nodeID, name)
-				// server di node ini dianggap offline (status milik daemon; saat reconnect daemon kirim ulang state)
+				log.Printf("hub: node %d (%s) offline", nodeID, name)
+				// status server milik daemon; saat reconnect daemon kirim ulang state
 				markServersOffline(db, nodeID)
 			}
 		}()
 
-		// Loop baca frame daemon. Fase 1: hello/state/heartbeat dicatat, sisanya diabaikan.
+		// tulis frame: satu goroutine tulis + channel (Conn tidak boleh
+		// ditulis concurrent dari banyak browser console sekaligus).
+		writeCh := make(chan Frame, 256)
+		c.BindSend(func(f Frame) error {
+			select {
+			case writeCh <- f:
+				return nil
+			default:
+				return &sendError{"daemon send queue full"}
+			}
+		})
+		go func() {
+			for f := range writeCh {
+				if err := writeFrame(r.Context(), conn, f); err != nil {
+					// koneksi putus: tutup — read loop yang akan membersihkan
+					return
+				}
+			}
+		}()
+
+		// Loop baca frame daemon → dispatch ke router panel.
 		ctx := r.Context()
 		for {
 			_, data, err := conn.Read(ctx)
@@ -71,12 +86,10 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 			}
 			var f Frame
 			if err := json.Unmarshal(data, &f); err != nil {
-				logf("node %d: bad frame: %v", nodeID, err)
+				log.Printf("hub: node %d: bad frame: %v", nodeID, err)
 				continue
 			}
 			switch f.Type {
-			case "hello":
-				logf("node %d hello", nodeID)
 			case "state":
 				var st struct {
 					ServerUUID string `json:"server_uuid"`
@@ -85,13 +98,89 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 				if json.Unmarshal(f.Payload, &st) == nil && st.ServerUUID != "" {
 					updateServerStatus(db, st.ServerUUID, st.Status)
 				}
+				// teruskan juga ke router (biar console browser dapat status)
+				hub.Dispatch(nodeID, f)
+			case "hello":
+				log.Printf("node %d hello", nodeID)
+				// kirim daftar server milik node ini (servers.sync)
+				if payload := serversSyncPayload(db, nodeID); payload != nil {
+					_ = writeFrame(ctx, conn, Frame{Ch: "rpc", Type: "servers.sync", Payload: payload})
+				}
 			case "heartbeat":
 				// cukup diterima; node dianggap online selama koneksi hidup
 			default:
-				// fase 1: abaikan (console, stats, rpc) — fase berikutnya
+				// console:out, stats, rpc:res → router panel (console browser)
+				hub.Dispatch(nodeID, f)
 			}
 		}
 	}
+}
+
+// serversSyncPayload: buat payload servers.sync untuk node (server yang
+// terdaftar di node ini) — dikirim saat daemon hello.
+func serversSyncPayload(db *sql.DB, nodeID int64) []byte {
+	rows, err := db.Query(`SELECT sv.uuid, e.docker_image, sv.memory_mb, sv.cpu_percent, e.stop_signal, a.ip, a.port
+		FROM servers sv
+		JOIN eggs e ON e.id = sv.egg_id
+		JOIN allocations a ON a.id = sv.allocation_id
+		WHERE sv.node_id = ?`, nodeID)
+	if err != nil {
+		log.Printf("serversSyncPayload: %v", err)
+		return nil
+	}
+	defer rows.Close()
+	type syncServer struct {
+		UUID       string   `json:"uuid"`
+		Image      string   `json:"image"`
+		Cmd        []string `json:"cmd"`
+		Env        []string `json:"env"`
+		MemoryMB   int64    `json:"memory_mb"`
+		CPUPercent int      `json:"cpu_percent"`
+		StopSignal string   `json:"stop_signal"`
+		Port       int      `json:"port"`
+	}
+	servers := []syncServer{}
+	for rows.Next() {
+		var s syncServer
+		var ip string
+		var port int
+		if err := rows.Scan(&s.UUID, &s.Image, &s.MemoryMB, &s.CPUPercent, &s.StopSignal, &ip, &port); err != nil {
+			continue
+		}
+		s.Port = port
+		// env sederhana: SERVER_IP + port (fase 3: egg variables)
+		s.Env = []string{"SERVER_IP=" + ip, "SERVER_PORT=" + itoa(port)}
+		s.Cmd = []string{"/bin/sh", "-c", "echo 'garuda: startup command belum dikonfigurasi (egg startup phase 3)'"}
+		servers = append(servers, s)
+	}
+	b, err := json.Marshal(map[string]any{"servers": servers})
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	digits := ""
+	for n > 0 {
+		digits = string(rune('0'+n%10)) + digits
+		n /= 10
+	}
+	return digits
+}
+
+// writeFrame: tulis frame ke conn (di daemonhub, timeout 5 detik).
+func writeFrame(ctx context.Context, conn *websocket.Conn, f Frame) error {
+	data, err := json.Marshal(f)
+	if err != nil {
+		return err
+	}
+	wctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return conn.Write(wctx, websocket.MessageText, data)
 }
 
 func markServersOffline(db *sql.DB, nodeID int64) {
@@ -109,5 +198,3 @@ func updateServerStatus(db *sql.DB, uuid, status string) {
 		log.Printf("updateServerStatus: %v", err)
 	}
 }
-
-var _ = time.Now

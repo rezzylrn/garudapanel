@@ -25,21 +25,22 @@ type consoleHub struct {
 
 // consoleSession: satu sesi console aktif (satu browser via panel).
 type consoleSession struct {
-	id       string
-	cancel   context.CancelFunc      // batal → stdout pump berhenti + handle.Close
-	stdin    io.WriteCloser          // input dari panel/console browser
-	handle   dockerrt.ExecHandle     // handle exec (resize/close) — nil sampai attach selesai
+	id     string
+	cancel context.CancelFunc  // batal → stdout pump berhenti + handle.Close
+	stdin  io.WriteCloser      // input dari panel/console browser
+	handle dockerrt.ExecHandle // handle exec (resize/close) — nil sampai attach selesai
 }
 
 // consoleHubFor: ambil (atau buat) hub console untuk uuid.
 func (s *Supervisor) consoleHubFor(uuid string) *consoleHub {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	h, ok := s.consoles[uuid]
 	if !ok {
-		h = &consoleHub{uuid: uuid, ring: s.ringFor(uuid), conns: map[string]*consoleSession{}}
+		h = &consoleHub{uuid: uuid, conns: map[string]*consoleSession{}}
 		s.consoles[uuid] = h
 	}
+	s.mu.Unlock()
+	h.ring = s.ringFor(uuid) // ringFor lock sendiri — di luar s.mu (no deadlock)
 	return h
 }
 
@@ -86,10 +87,14 @@ func (s *Supervisor) consoleOpen(uuid, id string) {
 	// goroutine sesi: jalankan exec attach, pompa output sampai ctx done.
 	go func() {
 		defer func() {
-			// tutup bersih: hapus dari registry + tutup stdin pipe
+			// tutup bersih: hapus dari registry + tutup stdin pipe.
+			// Hapus HANYA bila entri masih sesi ini (bukan sesi baru dengan
+			// id sama yang sudah di-register ulang oleh consoleOpen).
 			_ = pw.Close()
 			h.mu.Lock()
-			delete(h.conns, id)
+			if cur, ok := h.conns[id]; ok && cur == sess {
+				delete(h.conns, id)
+			}
 			h.mu.Unlock()
 		}()
 		handle, err := s.rt.ExecAttach(ctx, uuid, pr, outW)

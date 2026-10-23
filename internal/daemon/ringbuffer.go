@@ -58,8 +58,9 @@ func (r *RingBuffer) Bytes() []byte {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := make([]byte, r.length)
-	n1 := copy(out, r.buf[r.start:r.start+r.length])
-	if n1 < r.length { // wrap
+	// segmen 1: dari start sampai min(start+length, size)
+	n1 := copy(out, r.buf[r.start:min(r.start+r.length, r.size)])
+	if n1 < r.length { // wrap ke depan buffer
 		copy(out[n1:], r.buf[:r.length-n1])
 	}
 	return out
