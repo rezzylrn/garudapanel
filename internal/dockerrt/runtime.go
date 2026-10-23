@@ -31,6 +31,14 @@ type ContainerSpec struct {
 	BindPort     int      // port host yang dipublish (0 = tidak)
 	HostPath     string   // volume data server di host (kosong = tanpa volume)
 	ContainerUID int      // UID di dalam container (untuk chown file, fase 3)
+	DiskMB       int64    // limit disk volume server (quota, SPEC §7.3)
+	ImageUser    string   // field User image config (UID/GID operasi file, SPEC §7.4)
+}
+
+// FileOwner: UID/GID untuk operasi I/O file volume (SPEC §7.4). Sumber:
+// image config (ImageUser). Fallback 1000:1000 + log via filecore.OwnerFor.
+func (c ContainerSpec) FileOwner() (uid, gid int) {
+	return filecoreOwnerFor(c.Ref, c.ImageUser)
 }
 
 // ExecResult hasil ExecAttach: exit code proses di dalam container.
