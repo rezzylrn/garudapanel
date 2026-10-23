@@ -203,3 +203,244 @@ func newUUID() (string, error) {
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }
+
+// ---- Server user routes (Milestone 4: User Server List, Detail, Activity, Allocations) ----
+
+// handleUserServersList: GET /api/servers
+// Menampilkan semua server milik user (atau semua jika admin), beserta info node & primary allocation.
+func (s *Server) handleUserServersList(w http.ResponseWriter, r *http.Request) {
+	sess := auth.SessionFrom(r.Context())
+	q := `SELECT sv.id, sv.uuid, sv.name, sv.owner_id, sv.node_id, sv.egg_id,
+		sv.allocation_id, sv.memory_mb, sv.disk_mb, sv.cpu_percent, sv.status, sv.created_at,
+		COALESCE(n.name, ''), COALESCE(a.ip, ''), COALESCE(a.port, 0)
+		FROM servers sv
+		LEFT JOIN nodes n ON n.id = sv.node_id
+		LEFT JOIN allocations a ON a.id = sv.allocation_id`
+	args := []any{}
+	if !sess.IsAdmin {
+		q += ` WHERE sv.owner_id = ?`
+		args = append(args, sess.UserID)
+	}
+	q += ` ORDER BY sv.id DESC`
+
+	rows, err := s.DB.Query(q, args...)
+	if err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	defer rows.Close()
+
+	out := []map[string]any{}
+	for rows.Next() {
+		var id, owner, node, egg, alloc, mem, disk, created int64
+		var cpu int
+		var uuid, name, status, nodeName, ip string
+		var port int
+		if err := rows.Scan(&id, &uuid, &name, &owner, &node, &egg, &alloc, &mem, &disk, &cpu, &status, &created,
+			&nodeName, &ip, &port); err != nil {
+			writeErr(w, 500, "scan error")
+			return
+		}
+		out = append(out, map[string]any{
+			"id":            id,
+			"uuid":          uuid,
+			"name":          name,
+			"owner_id":      owner,
+			"node_id":       node,
+			"node_name":     nodeName,
+			"egg_id":        egg,
+			"allocation_id": alloc,
+			"ip":            ip,
+			"port":          port,
+			"memory_mb":     mem,
+			"disk_mb":       disk,
+			"cpu_percent":   cpu,
+			"status":        status,
+			"created_at":    created,
+		})
+	}
+	writeJSON(w, 200, out)
+}
+
+// handleServerUserGet: GET /api/servers/{id}
+// Detail server untuk owner atau admin.
+func (s *Server) handleServerUserGet(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	sess := auth.SessionFrom(r.Context())
+	var id2, owner, node, egg, alloc, mem, disk, created int64
+	var cpu int
+	var uuid, name, status, nodeName, eggName, ip string
+	var port int
+	err := s.DB.QueryRow(`SELECT sv.id, sv.uuid, sv.name, sv.owner_id, sv.node_id, sv.egg_id, sv.allocation_id,
+		sv.memory_mb, sv.disk_mb, sv.cpu_percent, sv.status, sv.created_at,
+		COALESCE(n.name, ''), COALESCE(e.name, ''), COALESCE(a.ip, ''), COALESCE(a.port, 0)
+		FROM servers sv
+		LEFT JOIN nodes n ON n.id = sv.node_id
+		LEFT JOIN eggs e ON e.id = sv.egg_id
+		LEFT JOIN allocations a ON a.id = sv.allocation_id
+		WHERE sv.id=?`, id).
+		Scan(&id2, &uuid, &name, &owner, &node, &egg, &alloc, &mem, &disk, &cpu, &status, &created,
+			&nodeName, &eggName, &ip, &port)
+	if err == sql.ErrNoRows {
+		writeErr(w, 404, "server not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	if !auth.IsOwnerOrAdmin(sess, owner) {
+		writeErr(w, 403, "not owner")
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"id":            id2,
+		"uuid":          uuid,
+		"name":          name,
+		"owner_id":      owner,
+		"node_id":       node,
+		"node_name":     nodeName,
+		"egg_id":        egg,
+		"egg_name":      eggName,
+		"allocation_id": alloc,
+		"ip":            ip,
+		"port":          port,
+		"memory_mb":     mem,
+		"disk_mb":       disk,
+		"cpu_percent":   cpu,
+		"status":        status,
+		"created_at":    created,
+	})
+}
+
+// handleServerActivity: GET /api/servers/{id}/activity
+// Mengambil log aktivitas server (maks 50).
+func (s *Server) handleServerActivity(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var ownerID int64
+	err := s.DB.QueryRow(`SELECT owner_id FROM servers WHERE id=?`, id).Scan(&ownerID)
+	if err == sql.ErrNoRows {
+		writeErr(w, 404, "server not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	sess := auth.SessionFrom(r.Context())
+	if !auth.IsOwnerOrAdmin(sess, ownerID) {
+		writeErr(w, 403, "not owner")
+		return
+	}
+
+	logs, err := activity.List(s.DB, id, 50)
+	if err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	writeJSON(w, 200, logs)
+}
+
+// handleServerAllocationsList: GET /api/servers/{id}/allocations
+// Mengambil semua allocation milik server ini dan menandai yang primary.
+func (s *Server) handleServerAllocationsList(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var ownerID, primaryAllocID int64
+	err := s.DB.QueryRow(`SELECT owner_id, allocation_id FROM servers WHERE id=?`, id).Scan(&ownerID, &primaryAllocID)
+	if err == sql.ErrNoRows {
+		writeErr(w, 404, "server not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	sess := auth.SessionFrom(r.Context())
+	if !auth.IsOwnerOrAdmin(sess, ownerID) {
+		writeErr(w, 403, "not owner")
+		return
+	}
+
+	rows, err := s.DB.Query(`SELECT id, node_id, ip, port FROM allocations WHERE server_id=? ORDER BY id`, id)
+	if err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	defer rows.Close()
+
+	out := []map[string]any{}
+	for rows.Next() {
+		var allocID, nodeID int64
+		var ip string
+		var port int
+		if err := rows.Scan(&allocID, &nodeID, &ip, &port); err != nil {
+			writeErr(w, 500, "scan error")
+			return
+		}
+		out = append(out, map[string]any{
+			"id":         allocID,
+			"node_id":    nodeID,
+			"ip":         ip,
+			"port":       port,
+			"is_primary": allocID == primaryAllocID,
+		})
+	}
+	writeJSON(w, 200, out)
+}
+
+// handleServerSetPrimaryAllocation: POST /api/servers/{id}/allocations/primary
+// Mengganti primary allocation server ke salah satu allocation yang sudah ter-assign.
+func (s *Server) handleServerSetPrimaryAllocation(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var ownerID int64
+	err := s.DB.QueryRow(`SELECT owner_id FROM servers WHERE id=?`, id).Scan(&ownerID)
+	if err == sql.ErrNoRows {
+		writeErr(w, 404, "server not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	sess := auth.SessionFrom(r.Context())
+	if !auth.IsOwnerOrAdmin(sess, ownerID) {
+		writeErr(w, 403, "not owner")
+		return
+	}
+
+	var req struct {
+		AllocationID int64 `json:"allocation_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil || req.AllocationID <= 0 {
+		writeErr(w, 400, "allocation_id required")
+		return
+	}
+
+	// Pastikan allocation tersebut memang assigned ke server ini
+	var cnt int
+	err = s.DB.QueryRow(`SELECT COUNT(*) FROM allocations WHERE id=? AND server_id=?`, req.AllocationID, id).Scan(&cnt)
+	if err != nil || cnt == 0 {
+		writeErr(w, 422, "allocation not assigned to this server")
+		return
+	}
+
+	if _, err := s.DB.Exec(`UPDATE servers SET allocation_id=? WHERE id=?`, req.AllocationID, id); err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+
+	activity.Log(s.DB, sess.UserID, id, "server.allocation.primary", fmt.Sprintf("allocation_id=%d", req.AllocationID))
+	writeJSON(w, 200, map[string]string{"ok": "primary allocation updated"})
+}

@@ -114,7 +114,16 @@ func installServerRoutes(s *Server, r chi.Router) {
 		// egg variables (milestone 3): lihat/ubah variable editable
 		sr.Get("/variables", s.handleServerVariablesGet)
 		sr.Patch("/variables/{name}", s.handleServerVariableSet)
+
+		// server detail & sub-resources (milestone 4)
+		sr.Get("/", s.handleServerUserGet)
+		sr.Get("/activity", s.handleServerActivity)
+		sr.Get("/allocations", s.handleServerAllocationsList)
+		sr.Post("/allocations/primary", s.handleServerSetPrimaryAllocation)
 	})
+
+	// user server list (GET /api/servers)
+	r.Get("/api/servers", wrapH(s.Sessions.RequireAuth(http.HandlerFunc(s.handleUserServersList))))
 }
 
 // wrapH: HandlerFunc → http.Handler (helper komposisi middleware chi).

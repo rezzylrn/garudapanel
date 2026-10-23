@@ -309,7 +309,11 @@ func (s *Server) handleAllocationsCreate(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleAllocationsList(w http.ResponseWriter, r *http.Request) {
 	q := `SELECT id, node_id, ip, port, COALESCE(server_id,0) FROM allocations`
 	args := []any{}
-	if nodeID := chi.URLParam(r, "id"); nodeID != "" {
+	nodeID := chi.URLParam(r, "id")
+	if nodeID == "" {
+		nodeID = r.URL.Query().Get("node_id")
+	}
+	if nodeID != "" {
 		if nid, err := strconv.ParseInt(nodeID, 10, 64); err == nil && nid > 0 {
 			q += ` WHERE node_id=?`
 			args = append(args, nid)
