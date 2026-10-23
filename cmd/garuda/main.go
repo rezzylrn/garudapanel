@@ -24,10 +24,12 @@ const usage = `GarudaPanel — panel manajemen game server.
 Usage:
   garuda panel  [--addr :8080] [--db garuda-panel.db]
   garuda daemon --panel http://host:8080 --join TOKEN
+  garuda admin reset-password [--db garuda-panel.db]
 
 Commands:
   panel   jalankan panel HTTP (API + UI)
   daemon  jalankan daemon node (wajib --join untuk registrasi pertama)
+  admin   manajemen user admin (subcommand: reset-password)
 `
 
 func main() {
@@ -40,6 +42,8 @@ func main() {
 		cmdPanel(os.Args[2:])
 	case "daemon":
 		cmdDaemon(os.Args[2:])
+	case "admin":
+		cmdAdmin(os.Args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:
@@ -112,6 +116,75 @@ func cmdDaemon(args []string) {
 	if err := daemon.Join(opts); err != nil {
 		fatal("%v", err)
 	}
+}
+
+func cmdAdmin(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintf(os.Stderr, "Usage: garuda admin <reset-password> [options]\n")
+		os.Exit(2)
+	}
+	switch args[0] {
+	case "reset-password":
+		cmdAdminResetPassword(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "garuda admin: unknown command %q\n", args[0])
+		os.Exit(1)
+	}
+}
+
+func generateRandomPassword(length int) (string, error) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	for i := range b {
+		b[i] = charset[int(b[i])%len(charset)]
+	}
+	return string(b), nil
+}
+
+func cmdAdminResetPassword(args []string) {
+	fs := flag.NewFlagSet("admin reset-password", flag.ExitOnError)
+	dbPath := fs.String("db", "garuda-panel.db", "sqlite database path")
+	_ = fs.Parse(args)
+
+	sqlDB, err := db.Open(*dbPath)
+	if err != nil {
+		fatal("db: %v", err)
+	}
+	defer sqlDB.Close()
+
+	password, err := generateRandomPassword(16)
+	if err != nil {
+		fatal("generate password: %v", err)
+	}
+
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		fatal("hash password: %v", err)
+	}
+
+	var exists int
+	err = sqlDB.QueryRow(`SELECT COUNT(*) FROM users WHERE username = 'admin'`).Scan(&exists)
+	if err != nil {
+		fatal("query user: %v", err)
+	}
+
+	if exists > 0 {
+		_, err = sqlDB.Exec(`UPDATE users SET password_hash = ?, is_admin = 1 WHERE username = 'admin'`, hash)
+		if err != nil {
+			fatal("update admin: %v", err)
+		}
+	} else {
+		_, err = sqlDB.Exec(`INSERT INTO users (username, email, password_hash, is_admin)
+			VALUES ('admin', 'admin@localhost', ?, 1)`, hash)
+		if err != nil {
+			fatal("create admin: %v", err)
+		}
+	}
+
+	fmt.Printf("ADMIN RESET -> username: admin password: %s\n", password)
 }
 
 // bootstrapAdmin buat user admin pertama kalau belum ada user sama sekali.

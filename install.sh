@@ -172,35 +172,91 @@ download_binary() {
 }
 
 # 5. Docker dependency check & install
+install_docker() {
+    log_info "Installing Docker..."
+
+    # Pastikan dependensi awal terpasang
+    apt-get update -y || true
+    apt-get install -y ca-certificates curl gnupg lsb-release || true
+
+    local os_id=""
+    local os_id_like=""
+    if [ -f /etc/os-release ]; then
+        # shellcheck disable=SC1091
+        eval "$(grep -E '^(ID|ID_LIKE)=' /etc/os-release)"
+        os_id="${ID:-}"
+        os_id_like="${ID_LIKE:-}"
+    fi
+
+    # Deteksi turunan Ubuntu (mis. Pop!_OS, Linux Mint, Elementary)
+    if [ "${os_id}" = "ubuntu" ] || [[ "${os_id_like}" == *ubuntu* ]]; then
+        local codename="${UBUNTU_CODENAME:-}"
+        if [ -z "${codename}" ] && command -v lsb_release >/dev/null 2>&1; then
+            codename="$(lsb_release -cs)"
+        fi
+        log_info "Ubuntu/Ubuntu derivative detected (${os_id}, codename: ${codename:-unknown}). Using Docker Ubuntu repository..."
+
+        # Hapus repo docker lama/rusak (misal sisa run get.docker.com yang salah deteksi trixie)
+        rm -f /etc/apt/sources.list.d/docker.list /etc/apt/sources.list.d/docker.list.save
+
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc || true
+        chmod a+r /etc/apt/keyrings/docker.asc || true
+
+        local dpkg_arch
+        dpkg_arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+
+        echo "deb [arch=${dpkg_arch} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${codename} stable" > /etc/apt/sources.list.d/docker.list
+
+        if apt-get update -y && apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+            log_ok "Docker CE installed from official Ubuntu repository."
+        else
+            log_warn "Official Docker repository install failed, attempting fallback to docker.io..."
+            rm -f /etc/apt/sources.list.d/docker.list
+            apt-get update -y || true
+            apt-get install -y docker.io || true
+        fi
+    else
+        # Non-Ubuntu (Debian native, dll.) -> coba get.docker.com
+        rm -f /etc/apt/sources.list.d/docker.list /etc/apt/sources.list.d/docker.list.save
+        if ! (curl -fsSL https://get.docker.com | sh); then
+            log_warn "get.docker.com failed, attempting fallback to docker.io..."
+            apt-get update -y || true
+            apt-get install -y docker.io || true
+        fi
+    fi
+
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl enable --now docker || true
+    fi
+    if getent group docker >/dev/null 2>&1; then
+        usermod -aG docker "${RUN_USER}" || true
+    fi
+
+    if docker info >/dev/null 2>&1; then
+        log_ok "Docker verified successfully (docker info ok)."
+    else
+        log_warn "Docker install verification failed. Silakan install Docker manual: sudo apt install -y docker.io"
+    fi
+}
+
 ensure_docker() {
-    if command -v docker >/dev/null 2>&1; then
-        log_ok "Docker is already installed."
+    if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+        log_ok "Docker is already installed and running."
         return 0
     fi
 
-    log_warn "Docker is not installed. Daemon requires Docker to run game server containers."
-    read -rp "Install Docker now via https://get.docker.com? [Y/n]: " install_docker_choice
+    log_warn "Docker is not installed or not running. Daemon requires Docker to run game server containers."
+    read -rp "Install Docker now? [Y/n]: " install_docker_choice
     case "${install_docker_choice}" in
         [nN][oO]|[nN])
             log_warn "Skipping Docker installation. Note: garuda-daemon will fail to start until Docker is installed."
             ;;
         *)
-            log_info "Installing Docker..."
-            if command -v curl >/dev/null 2>&1; then
-                curl -fsSL https://get.docker.com | sh
-            elif command -v wget >/dev/null 2>&1; then
-                wget -qO- https://get.docker.com | sh
-            else
-                log_err "Cannot install Docker: neither curl nor wget found."
-                exit 1
-            fi
-            if command -v systemctl >/dev/null 2>&1; then
-                systemctl enable --now docker || true
-            fi
-            if getent group docker >/dev/null 2>&1; then
-                usermod -aG docker "${RUN_USER}" || true
-            fi
-            log_ok "Docker installed successfully."
+            # Non-fatal wrapper agar gagal install docker tidak meng-abort script (set -e)
+            set +e
+            install_docker
+            set -e
             ;;
     esac
 }
@@ -222,7 +278,8 @@ setup_panel() {
 
     local db_path="${panel_data_dir}/garuda-panel.db"
 
-    # Pre-bootstrap admin if database does not exist yet to capture credentials
+    # Pre-bootstrap admin if database does not exist yet to capture credentials,
+    # or reset-password if database already exists (agar kredensial SELALU tampil di summary)
     local bootstrap_output=""
     if [ ! -f "${db_path}" ]; then
         log_info "Initializing database and generating bootstrap admin credentials..."
@@ -231,6 +288,14 @@ setup_panel() {
         timeout 2s "${GARUDA_BIN}" panel --db "${db_path}" --addr 127.0.0.1:0 > "${tmp_log}" 2>&1 || true
         bootstrap_output=$(grep "BOOTSTRAP ADMIN" "${tmp_log}" || true)
         rm -f "${tmp_log}"
+        chown "${RUN_USER}:${RUN_USER}" "${db_path}" 2>/dev/null || true
+    else
+        log_info "Existing database found. Resetting admin password to ensure credentials are shown..."
+        local reset_log
+        reset_log=$(mktemp)
+        "${GARUDA_BIN}" admin reset-password --db "${db_path}" > "${reset_log}" 2>&1 || true
+        bootstrap_output=$(grep "ADMIN RESET" "${reset_log}" || true)
+        rm -f "${reset_log}"
         chown "${RUN_USER}:${RUN_USER}" "${db_path}" 2>/dev/null || true
     fi
 
