@@ -123,7 +123,7 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 // serversSyncPayload: buat payload servers.sync untuk node (server yang
 // terdaftar di node ini) — dikirim saat daemon hello.
 func serversSyncPayload(db *sql.DB, nodeID int64) []byte {
-	rows, err := db.Query(`SELECT sv.uuid, e.docker_image, sv.memory_mb, sv.cpu_percent, e.stop_signal, a.ip, a.port,
+	rows, err := db.Query(`SELECT sv.uuid, e.docker_images, sv.memory_mb, sv.cpu_percent, e.config_stop, a.ip, a.port,
 		sv.disk_mb
 		FROM servers sv
 		JOIN eggs e ON e.id = sv.egg_id
@@ -135,29 +135,39 @@ func serversSyncPayload(db *sql.DB, nodeID int64) []byte {
 	}
 	defer rows.Close()
 	type syncServer struct {
-		UUID       string   `json:"uuid"`
-		Image      string   `json:"image"`
-		Cmd        []string `json:"cmd"`
-		Env        []string `json:"env"`
-		MemoryMB   int64    `json:"memory_mb"`
-		CPUPercent int      `json:"cpu_percent"`
-		StopSignal string   `json:"stop_signal"`
-		Port       int      `json:"port"`
-		DiskMB     int64    `json:"disk_mb"`
-		ImageUser  string   `json:"image_user"` // kosong → daemon resolve dari image config
+		UUID        string   `json:"uuid"`
+		Image       string   `json:"image"`
+		Cmd         []string `json:"cmd"`
+		Env         []string `json:"env"`
+		MemoryMB    int64    `json:"memory_mb"`
+		CPUPercent  int      `json:"cpu_percent"`
+		StopCommand string   `json:"stop_command"`
+		Port        int      `json:"port"`
+		DiskMB      int64    `json:"disk_mb"`
+		ImageUser   string   `json:"image_user"` // kosong → daemon resolve dari image config
 	}
 	type rawSyncServer struct {
 		syncServer
-		ip   string
-		port int
+		imagesJSON string
+		ip         string
+		port       int
 	}
 	rawServers := []rawSyncServer{}
 	for rows.Next() {
 		var s rawSyncServer
-		if err := rows.Scan(&s.UUID, &s.Image, &s.MemoryMB, &s.CPUPercent, &s.StopSignal, &s.ip, &s.port, &s.DiskMB); err != nil {
+		if err := rows.Scan(&s.UUID, &s.imagesJSON, &s.MemoryMB, &s.CPUPercent, &s.StopCommand, &s.ip, &s.port, &s.DiskMB); err != nil {
 			continue
 		}
 		s.Port = s.port
+		// docker_images adalah JSON map nama->image; pakai entry pertama.
+		// Server bisa override image via kolomnya sendiri (phase berikutnya).
+		var images map[string]string
+		if json.Unmarshal([]byte(s.imagesJSON), &images) == nil {
+			for _, img := range images {
+				s.Image = img
+				break
+			}
+		}
 		s.Cmd = []string{"/bin/sh", "-c", "echo 'garuda: startup command belum dikonfigurasi (egg startup phase 3)'"}
 		rawServers = append(rawServers, s)
 	}

@@ -61,6 +61,21 @@ type Supervisor struct {
 	statsCtxs map[string]context.CancelFunc // uuid → cancel loop stats
 }
 
+// stopCommandToSignal maps a Pterodactyl-style stop command to a Docker
+// stop signal. "^C" (the Pterodactyl convention) means SIGINT; a bare signal
+// name is passed through; anything else falls back to SIGTERM (Wings would
+// write it to stdin — not yet supported here).
+func stopCommandToSignal(cmd string) string {
+	switch cmd {
+	case "^C", "SIGINT":
+		return "SIGINT"
+	case "SIGTERM", "SIGKILL", "SIGHUP", "SIGQUIT":
+		return cmd
+	default:
+		return "SIGTERM"
+	}
+}
+
 // NewSupervisor: buat supervisor dengan runtime.
 func NewSupervisor(rt dockerrt.ContainerRuntime, cfg SupervisorConfig) *Supervisor {
 	if cfg.StatsInterval <= 0 {
@@ -167,16 +182,16 @@ func (s *Supervisor) HandleFrame(f Frame) {
 		// panel kirim daftar server milik node ini saat daemon connect.
 		var p struct {
 			Servers []struct {
-				UUID       string   `json:"uuid"`
-				Image      string   `json:"image"`
-				Cmd        []string `json:"cmd"`
-				Env        []string `json:"env"`
-				MemoryMB   int64    `json:"memory_mb"`
-				CPUPercent int      `json:"cpu_percent"`
-				StopSignal string   `json:"stop_signal"`
-				Port       int      `json:"port"`
-				DiskMB     int64    `json:"disk_mb"`
-				ImageUser  string   `json:"image_user"`
+				UUID        string   `json:"uuid"`
+				Image       string   `json:"image"`
+				Cmd         []string `json:"cmd"`
+				Env         []string `json:"env"`
+				MemoryMB    int64    `json:"memory_mb"`
+				CPUPercent  int      `json:"cpu_percent"`
+				StopCommand string   `json:"stop_command"`
+				Port        int      `json:"port"`
+				DiskMB      int64    `json:"disk_mb"`
+				ImageUser   string   `json:"image_user"`
 			} `json:"servers"`
 		}
 		if err := unmarshal(f.Payload, &p); err != nil {
@@ -191,6 +206,7 @@ func (s *Supervisor) HandleFrame(f Frame) {
 				Env:        sv.Env,
 				MemoryMB:   sv.MemoryMB,
 				CPUPercent: sv.CPUPercent,
+				StopSignal: stopCommandToSignal(sv.StopCommand),
 				BindPort:   sv.Port,
 				HostPath:   s.volumeFor(sv.UUID),
 				DiskMB:     sv.DiskMB,

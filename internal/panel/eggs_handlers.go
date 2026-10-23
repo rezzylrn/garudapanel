@@ -2,6 +2,7 @@ package panel
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -11,19 +12,34 @@ import (
 	"garudapanel/internal/auth"
 )
 
-// ---- Eggs CRUD (admin) ----
+// ---- Eggs CRUD (admin) — Pterodactyl-style format ----
 
+// eggReq mirrors the Pterodactyl egg structure: basic info, docker images map,
+// startup/stop configuration and install script block.
 type eggReq struct {
-	NestID        int64  `json:"nest_id"`
-	Name          string `json:"name"`
-	DockerImage   string `json:"docker_image"`
-	StartupCmd    string `json:"startup_cmd"`
-	StopSignal    string `json:"stop_signal"`
-	InstallScript string `json:"install_script"`
+	NestID            int64             `json:"nest_id"`
+	Name              string            `json:"name"`
+	Author            string            `json:"author"`
+	Description       string            `json:"description"`
+	DockerImages      map[string]string `json:"docker_images"`
+	Startup           string            `json:"startup"`
+	ConfigStartupDone string            `json:"config_startup_done"`
+	ConfigStop        string            `json:"config_stop"`
+	ConfigFiles       string            `json:"config_files"`
+	ConfigLogs        string            `json:"config_logs"`
+	InstallScript     string            `json:"install_script"`
+	InstallContainer  string            `json:"install_container"`
+	InstallEntrypoint string            `json:"install_entrypoint"`
+	// Legacy aliases (accepted on write, mapped to the new fields).
+	DockerImage string `json:"docker_image"`
+	StartupCmd  string `json:"startup_cmd"`
+	StopSignal  string `json:"stop_signal"`
 }
 
 func (s *Server) handleEggsList(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.DB.Query(`SELECT id, nest_id, name, docker_image, startup_cmd, stop_signal, install_script, created_at FROM eggs ORDER BY id`)
+	rows, err := s.DB.Query(`SELECT id, nest_id, name, author, description, docker_images,
+		startup_cmd, config_startup_done, config_stop, install_script, created_at
+		FROM eggs ORDER BY id`)
 	if err != nil {
 		writeErr(w, 500, "db error")
 		return
@@ -32,17 +48,66 @@ func (s *Server) handleEggsList(w http.ResponseWriter, r *http.Request) {
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, nest, created int64
-		var name, img, startup, sig, install string
-		if err := rows.Scan(&id, &nest, &name, &img, &startup, &sig, &install, &created); err != nil {
+		var name, author, desc, images, startup, done, stop, install string
+		if err := rows.Scan(&id, &nest, &name, &author, &desc, &images,
+			&startup, &done, &stop, &install, &created); err != nil {
 			writeErr(w, 500, "scan error")
 			return
 		}
-		out = append(out, map[string]any{
-			"id": id, "nest_id": nest, "name": name, "docker_image": img,
-			"startup_cmd": startup, "stop_signal": sig, "install_script": install, "created_at": created,
-		})
+		out = append(out, eggJSON(id, nest, name, author, desc, images,
+			startup, done, stop, install, created))
 	}
 	writeJSON(w, 200, out)
+}
+
+// eggJSON builds the API representation, including legacy aliases so older
+// clients keep working (docker_image = first entry of docker_images).
+func eggJSON(id, nest int64, name, author, desc, imagesJSON, startup,
+	done, stop, install string, created int64) map[string]any {
+	images := map[string]string{}
+	_ = json.Unmarshal([]byte(imagesJSON), &images)
+	firstImage := ""
+	for _, v := range images {
+		firstImage = v
+		break
+	}
+	return map[string]any{
+		"id": id, "nest_id": nest, "name": name, "author": author,
+		"description": desc, "docker_images": images,
+		"startup": startup, "config_startup_done": done, "config_stop": stop,
+		"install_script": install, "created_at": created,
+		// legacy aliases
+		"docker_image": firstImage, "startup_cmd": startup, "stop_signal": stop,
+	}
+}
+
+func normalizeEggReq(req *eggReq) {
+	// Legacy aliases.
+	if len(req.DockerImages) == 0 && req.DockerImage != "" {
+		req.DockerImages = map[string]string{"Default": req.DockerImage}
+	}
+	if req.Startup == "" {
+		req.Startup = req.StartupCmd
+	}
+	if req.ConfigStop == "" {
+		if req.StopSignal == "SIGINT" {
+			req.ConfigStop = "^C"
+		} else if req.StopSignal != "" {
+			req.ConfigStop = req.StopSignal
+		}
+	}
+	if req.ConfigStop == "" {
+		req.ConfigStop = "^C"
+	}
+	if req.InstallEntrypoint == "" {
+		req.InstallEntrypoint = "ash"
+	}
+	if req.ConfigFiles == "" {
+		req.ConfigFiles = "{}"
+	}
+	if req.ConfigLogs == "" {
+		req.ConfigLogs = "{}"
+	}
 }
 
 func (s *Server) handleEggsCreate(w http.ResponseWriter, r *http.Request) {
@@ -51,8 +116,9 @@ func (s *Server) handleEggsCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "invalid body")
 		return
 	}
-	if req.Name == "" || req.DockerImage == "" || req.StartupCmd == "" || req.NestID <= 0 {
-		writeErr(w, 422, "nest_id, name, docker_image, startup_cmd required")
+	normalizeEggReq(&req)
+	if req.Name == "" || len(req.DockerImages) == 0 || req.Startup == "" || req.NestID <= 0 {
+		writeErr(w, 422, "nest_id, name, docker_images, startup required")
 		return
 	}
 	var nestExists int
@@ -60,11 +126,25 @@ func (s *Server) handleEggsCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 422, "nest_id does not exist")
 		return
 	}
-	if req.StopSignal == "" {
-		req.StopSignal = "SIGTERM"
+	imagesJSON, _ := json.Marshal(req.DockerImages)
+	// Keep legacy columns populated for backward compatibility.
+	legacyImage := ""
+	for _, v := range req.DockerImages {
+		legacyImage = v
+		break
 	}
-	res, err := s.DB.Exec(`INSERT INTO eggs (nest_id, name, docker_image, startup_cmd, stop_signal, install_script)
-		VALUES (?,?,?,?,?,?)`, req.NestID, req.Name, req.DockerImage, req.StartupCmd, req.StopSignal, req.InstallScript)
+	legacyStop := req.ConfigStop
+	if legacyStop == "^C" {
+		legacyStop = "SIGINT"
+	}
+	res, err := s.DB.Exec(`INSERT INTO eggs
+		(nest_id, name, author, description, docker_image, docker_images, startup_cmd,
+		 stop_signal, config_startup_done, config_stop, config_files, config_logs,
+		 install_script, install_container, install_entrypoint)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		req.NestID, req.Name, req.Author, req.Description, legacyImage, string(imagesJSON), req.Startup,
+		legacyStop, req.ConfigStartupDone, req.ConfigStop, req.ConfigFiles, req.ConfigLogs,
+		req.InstallScript, req.InstallContainer, req.InstallEntrypoint)
 	if err != nil {
 		writeErr(w, 500, "db error")
 		return
@@ -81,10 +161,13 @@ func (s *Server) handleEggsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var nest int64
-	var name, img, startup, sig, install string
+	var name, author, desc, images, startup, done, stop, files, logs, install, container, entrypoint string
 	var created int64
-	err := s.DB.QueryRow(`SELECT nest_id, name, docker_image, startup_cmd, stop_signal, install_script, created_at
-		FROM eggs WHERE id=?`, id).Scan(&nest, &name, &img, &startup, &sig, &install, &created)
+	err := s.DB.QueryRow(`SELECT nest_id, name, author, description, docker_images, startup_cmd,
+		config_startup_done, config_stop, config_files, config_logs,
+		install_script, install_container, install_entrypoint, created_at
+		FROM eggs WHERE id=?`, id).Scan(&nest, &name, &author, &desc, &images, &startup,
+		&done, &stop, &files, &logs, &install, &container, &entrypoint, &created)
 	if err == sql.ErrNoRows {
 		writeErr(w, 404, "egg not found")
 		return
@@ -98,11 +181,13 @@ func (s *Server) handleEggsGet(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, "db error")
 		return
 	}
-	writeJSON(w, 200, map[string]any{
-		"id": id, "nest_id": nest, "name": name, "docker_image": img,
-		"startup_cmd": startup, "stop_signal": sig, "install_script": install,
-		"created_at": created, "variables": vars,
-	})
+	out := eggJSON(id, nest, name, author, desc, images, startup, done, stop, install, created)
+	out["config_files"] = files
+	out["config_logs"] = logs
+	out["install_container"] = container
+	out["install_entrypoint"] = entrypoint
+	out["variables"] = vars
+	writeJSON(w, 200, out)
 }
 
 func (s *Server) eggVariables(eggID int64) ([]map[string]any, error) {
@@ -138,26 +223,56 @@ func (s *Server) handleEggsUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "invalid body")
 		return
 	}
+	normalizeEggReq(&req)
 	set, args := []string{}, []any{}
 	if req.Name != "" {
 		set = append(set, "name=?")
 		args = append(args, req.Name)
 	}
-	if req.DockerImage != "" {
-		set = append(set, "docker_image=?")
-		args = append(args, req.DockerImage)
+	if req.Author != "" {
+		set = append(set, "author=?")
+		args = append(args, req.Author)
 	}
-	if req.StartupCmd != "" {
+	if req.Description != "" {
+		set = append(set, "description=?")
+		args = append(args, req.Description)
+	}
+	if len(req.DockerImages) > 0 {
+		imagesJSON, _ := json.Marshal(req.DockerImages)
+		set = append(set, "docker_images=?")
+		args = append(args, string(imagesJSON))
+	}
+	if req.Startup != "" {
 		set = append(set, "startup_cmd=?")
-		args = append(args, req.StartupCmd)
+		args = append(args, req.Startup)
 	}
-	if req.StopSignal != "" {
-		set = append(set, "stop_signal=?")
-		args = append(args, req.StopSignal)
+	if req.ConfigStartupDone != "" {
+		set = append(set, "config_startup_done=?")
+		args = append(args, req.ConfigStartupDone)
+	}
+	if req.ConfigStop != "" {
+		set = append(set, "config_stop=?")
+		args = append(args, req.ConfigStop)
+	}
+	if req.ConfigFiles != "" {
+		set = append(set, "config_files=?")
+		args = append(args, req.ConfigFiles)
+	}
+	if req.ConfigLogs != "" {
+		set = append(set, "config_logs=?")
+		args = append(args, req.ConfigLogs)
 	}
 	if req.InstallScript != "" {
 		set = append(set, "install_script=?")
 		args = append(args, req.InstallScript)
+	}
+	if req.InstallContainer != "" {
+		set = append(set, "install_container=?")
+		args = append(args, req.InstallContainer)
+	}
+	if req.InstallEntrypoint != "" {
+		set = append(set, "install_entrypoint=?")
+		args = append(args, req.InstallEntrypoint)
 	}
 	if len(set) == 0 {
 		writeErr(w, 400, "nothing to update")

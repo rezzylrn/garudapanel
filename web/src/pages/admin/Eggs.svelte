@@ -8,14 +8,24 @@
   let errorMsg = '';
   let showCreateModal = false;
 
-  // Form New Egg
+  // Form New Egg — Pterodactyl-style fields
   let name = '';
+  let author = '';
+  let description = '';
   let nestId = 1;
-  let dockerImage = 'ghcr.io/pterodactyl/yolks:java_17';
-  let startupCmd = 'java -Xms128M -Xmx{{SERVER_MEMORY}}M -jar server.jar';
-  let stopSignal = 'SIGTERM';
-  let installScript = '#!/bin/ash\necho "installing..."';
+  let dockerImages = '{\n  "Alpine": "ghcr.io/pterodactyl/yolks:alpine"\n}';
+  let startup = './samp03svr';
+  let configStop = '^C';
+  let configStartupDone = '';
+  let installContainer = 'ghcr.io/pterodactyl/yolks:alpine';
+  let installEntrypoint = 'ash';
+  let installScript = '#!/bin/ash\n# Install script runs inside the install container.\n# Downloaded files land in /mnt/server (the server volume).\n';
   let submitting = false;
+
+  // Inline nest creation
+  let showNestForm = false;
+  let newNestName = '';
+  let creatingNest = false;
 
   // Variables Management Modal
   let showVarModal = false;
@@ -55,31 +65,71 @@
 
   async function createEgg(e) {
     e.preventDefault();
+    let images;
+    try {
+      images = JSON.parse(dockerImages);
+    } catch (err) {
+      alert('Docker Images must be valid JSON, e.g. {"Alpine": "ghcr.io/pterodactyl/yolks:alpine"}');
+      return;
+    }
     submitting = true;
     try {
       const res = await apiFetch('/api/admin/eggs', {
         method: 'POST',
         body: {
           name,
+          author,
+          description,
           nest_id: Number(nestId),
-          docker_image: dockerImage,
-          startup_cmd: startupCmd,
-          stop_signal: stopSignal,
+          docker_images: images,
+          startup,
+          config_stop: configStop,
+          config_startup_done: configStartupDone,
+          install_container: installContainer,
+          install_entrypoint: installEntrypoint,
           install_script: installScript,
         },
       });
       if (res.ok) {
         showCreateModal = false;
         name = '';
+        author = '';
+        description = '';
         loadData();
       } else {
         const err = await res.json();
-        alert('Gagal: ' + (err.error || 'Error'));
+        alert('Failed: ' + (err.error || 'Error'));
       }
     } catch (e) {
       alert('Error: ' + e.message);
     } finally {
       submitting = false;
+    }
+  }
+
+  async function createNest(e) {
+    e.preventDefault();
+    if (!newNestName.trim()) return;
+    creatingNest = true;
+    try {
+      const res = await apiFetch('/api/admin/nests', {
+        method: 'POST',
+        body: { name: newNestName.trim() },
+      });
+      if (res.ok) {
+        const nest = await res.json();
+        newNestName = '';
+        showNestForm = false;
+        await loadData();
+        nestId = nest.id;
+      } else {
+        const err = await res.json();
+        alert('Failed: ' + (err.error || 'Error'));
+      }
+    } catch (e) {
+      alert('Error: ' + e.message);
+    } finally {
+      creatingNest = false;
     }
   }
 
@@ -219,8 +269,8 @@
               <td class="py-2 px-3 text-slate-300">
                 {nests.find((n) => n.id === eg.nest_id)?.name || `Nest #${eg.nest_id}`}
               </td>
-              <td class="py-2 px-3 text-slate-300 truncate max-w-[200px]">{eg.docker_image}</td>
-              <td class="py-2 px-3 text-garuda-muted">{eg.stop_signal || 'SIGTERM'}</td>
+              <td class="py-2 px-3 text-slate-300 truncate max-w-[200px]">{Object.values(eg.docker_images || {})[0] || '-'}</td>
+              <td class="py-2 px-3 text-garuda-muted">{eg.config_stop || '^C'}</td>
               <td class="py-2 px-3 text-right">
                 <div class="flex items-center justify-end gap-1">
                   <button
@@ -247,27 +297,69 @@
   <!-- Modal Create Egg -->
   {#if showCreateModal}
     <div class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div class="bg-garuda-surface border border-garuda-border max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto">
+      <div class="bg-garuda-surface border border-garuda-border max-w-2xl w-full p-5 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between pb-2 mb-3 border-b border-garuda-border">
-          <h3 class="font-bold text-slate-100 uppercase tracking-wider">Tambah Template Egg</h3>
+          <h3 class="font-bold text-slate-100 uppercase tracking-wider">New Egg</h3>
           <button on:click={() => (showCreateModal = false)} class="text-garuda-muted hover:text-white">&times;</button>
         </div>
 
         <form on:submit={createEgg} class="space-y-3">
-          <div>
-            <label for="egg-name" class="block text-[11px] uppercase text-garuda-muted mb-1">Nama Egg</label>
-            <input
-              id="egg-name"
-              type="text"
-              bind:value={name}
-              required
-              placeholder="PaperMC 1.20"
-              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
-            />
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="egg-name" class="block text-[11px] uppercase text-garuda-muted mb-1">Name</label>
+              <input
+                id="egg-name"
+                type="text"
+                bind:value={name}
+                required
+                placeholder="San Andreas Multiplayer"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
+              />
+            </div>
+            <div>
+              <label for="egg-author" class="block text-[11px] uppercase text-garuda-muted mb-1">Author</label>
+              <input
+                id="egg-author"
+                type="text"
+                bind:value={author}
+                placeholder="you@example.com"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
+              />
+            </div>
           </div>
 
           <div>
-            <label for="egg-nest" class="block text-[11px] uppercase text-garuda-muted mb-1">Nest</label>
+            <label for="egg-desc" class="block text-[11px] uppercase text-garuda-muted mb-1">Description</label>
+            <textarea
+              id="egg-desc"
+              bind:value={description}
+              rows="2"
+              placeholder="Short description of this egg..."
+              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
+            ></textarea>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label for="egg-nest" class="block text-[11px] uppercase text-garuda-muted">Nest</label>
+              <button type="button" on:click={() => (showNestForm = !showNestForm)} class="text-[11px] text-garuda-accent hover:underline">
+                + New nest
+              </button>
+            </div>
+            {#if showNestForm}
+              <form on:submit={createNest} class="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  bind:value={newNestName}
+                  required
+                  placeholder="Nest name, e.g. Game Servers"
+                  class="flex-1 px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
+                />
+                <button type="submit" disabled={creatingNest} class="px-3 py-1.5 border border-garuda-border text-slate-100 hover:bg-garuda-hover disabled:opacity-50">
+                  {creatingNest ? '...' : 'Add'}
+                </button>
+              </form>
+            {/if}
             <select
               id="egg-nest"
               bind:value={nestId}
@@ -280,45 +372,84 @@
           </div>
 
           <div>
-            <label for="egg-img" class="block text-[11px] uppercase text-garuda-muted mb-1">Docker Image</label>
-            <input
-              id="egg-img"
-              type="text"
-              bind:value={dockerImage}
-              required
-              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
-            />
-          </div>
-
-          <div>
-            <label for="egg-cmd" class="block text-[11px] uppercase text-garuda-muted mb-1">Startup Command</label>
-            <input
-              id="egg-cmd"
-              type="text"
-              bind:value={startupCmd}
-              required
-              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
-            />
-          </div>
-
-          <div>
-            <label for="egg-sig" class="block text-[11px] uppercase text-garuda-muted mb-1">Stop Signal</label>
-            <input
-              id="egg-sig"
-              type="text"
-              bind:value={stopSignal}
-              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
-            />
-          </div>
-
-          <div>
-            <label for="egg-script" class="block text-[11px] uppercase text-garuda-muted mb-1">Install Script (Bash)</label>
+            <label for="egg-images" class="block text-[11px] uppercase text-garuda-muted mb-1">Docker Images (JSON)</label>
+            <p class="text-[11px] text-garuda-muted mb-1">Map of display name to image, same format as Pterodactyl.</p>
             <textarea
-              id="egg-script"
-              bind:value={installScript}
-              rows="4"
-              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
+              id="egg-images"
+              bind:value={dockerImages}
+              rows="3"
+              spellcheck="false"
+              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 font-mono text-[12px] focus:outline-none focus:border-garuda-accent"
             ></textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="egg-startup" class="block text-[11px] uppercase text-garuda-muted mb-1">Startup Command</label>
+              <input
+                id="egg-startup"
+                type="text"
+                bind:value={startup}
+                required
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 font-mono text-[12px] focus:outline-none focus:border-garuda-accent"
+              />
+            </div>
+            <div>
+              <label for="egg-stop" class="block text-[11px] uppercase text-garuda-muted mb-1">Stop Command</label>
+              <input
+                id="egg-stop"
+                type="text"
+                bind:value={configStop}
+                placeholder="^C"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 font-mono text-[12px] focus:outline-none focus:border-garuda-accent"
+              />
+              <p class="text-[11px] text-garuda-muted mt-1"><span class="font-mono">^C</span> = SIGINT, like Pterodactyl.</p>
+            </div>
+          </div>
+
+          <div>
+            <label for="egg-done" class="block text-[11px] uppercase text-garuda-muted mb-1">Startup Done Text (optional)</label>
+            <input
+              id="egg-done"
+              type="text"
+              bind:value={configStartupDone}
+              placeholder="Text in console output that marks the server as started"
+              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
+            />
+          </div>
+
+          <div class="pt-2 mt-1 border-t border-garuda-border">
+            <p class="text-[11px] uppercase text-garuda-muted mb-2 pt-1">Install Script</p>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label for="egg-install-container" class="block text-[11px] uppercase text-garuda-muted mb-1">Install Container</label>
+                <input
+                  id="egg-install-container"
+                  type="text"
+                  bind:value={installContainer}
+                  class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 font-mono text-[12px] focus:outline-none focus:border-garuda-accent"
+                />
+              </div>
+              <div>
+                <label for="egg-install-entry" class="block text-[11px] uppercase text-garuda-muted mb-1">Entrypoint</label>
+                <input
+                  id="egg-install-entry"
+                  type="text"
+                  bind:value={installEntrypoint}
+                  class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 font-mono text-[12px] focus:outline-none focus:border-garuda-accent"
+                />
+              </div>
+            </div>
+            <div>
+              <label for="egg-script" class="block text-[11px] uppercase text-garuda-muted mb-1">Script</label>
+              <textarea
+                id="egg-script"
+                bind:value={installScript}
+                rows="6"
+                spellcheck="false"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 font-mono text-[12px] focus:outline-none focus:border-garuda-accent"
+              ></textarea>
+            </div>
           </div>
 
           <div class="pt-3 border-t border-garuda-border flex items-center justify-end gap-2">
@@ -327,14 +458,14 @@
               on:click={() => (showCreateModal = false)}
               class="px-3 py-1.5 border border-garuda-border text-garuda-muted hover:bg-garuda-hover"
             >
-              Batal
+              Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
               class="px-4 py-1.5 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-100 uppercase tracking-wider font-semibold disabled:opacity-50"
             >
-              {submitting ? 'Menyimpan...' : 'Simpan'}
+              {submitting ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>
