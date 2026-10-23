@@ -10,11 +10,11 @@ import (
 
 // FileOps: operasi file satu server, lengkap dengan quota + owner.
 type FileOps struct {
-	fs     FS
-	quota  *MemQuota
-	uuid   string
-	uid    int
-	gid    int
+	fs    FS
+	quota *MemQuota
+	uuid  string
+	uid   int
+	gid   int
 	// ScanFn: fungsi background scan (dipasang daemon: DiskUsage dari FS).
 	ScanFn func() (int64, error)
 }

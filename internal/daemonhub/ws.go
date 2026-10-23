@@ -107,12 +107,12 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 				if payload := serversSyncPayload(db, nodeID); payload != nil {
 					_ = writeFrame(ctx, conn, Frame{Ch: "rpc", Type: "servers.sync", Payload: payload})
 				}
-		case "heartbeat":
-			// cukup diterima; node dianggap online selama koneksi hidup
-		case "rpc:res", "file:read-chunk":
-			// router frame rpc file manager — dipasang panel (files_rpc.go)
-			DispatchRPCFrame(f)
-		default:
+			case "heartbeat":
+				// cukup diterima; node dianggap online selama koneksi hidup
+			case "rpc:res", "file:read-chunk":
+				// router frame rpc file manager — dipasang panel (files_rpc.go)
+				DispatchRPCFrame(f)
+			default:
 				// console:out, stats, rpc:res → router panel (console browser)
 				hub.Dispatch(nodeID, f)
 			}
