@@ -26,7 +26,9 @@ func runWS(ctx context.Context, opts JoinOptions, nodeToken, nodeName string, su
 	}
 	hdr := http.Header{}
 	hdr.Set("X-Node-Token", nodeToken)
-	c, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: hdr})
+	dialCtx, dialCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer dialCancel()
+	c, _, err := websocket.Dial(dialCtx, wsURL, &websocket.DialOptions{HTTPHeader: hdr})
 	if err != nil {
 		return fmt.Errorf("dial %s: %w", wsURL, err)
 	}

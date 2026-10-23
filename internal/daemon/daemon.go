@@ -79,6 +79,7 @@ func Join(opts JoinOptions) error {
 
 // exchangeJoinToken POST /api/daemon/join dengan join token sekali pakai.
 func exchangeJoinToken(ctx context.Context, opts JoinOptions) (nodeToken, nodeName string, err error) {
+	log.Printf("joining panel %s ...", opts.PanelURL)
 	body, _ := json.Marshal(map[string]string{"join_token": opts.JoinToken})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		strings.TrimSuffix(opts.PanelURL, "/")+"/api/daemon/join", bytes.NewReader(body))
@@ -86,7 +87,8 @@ func exchangeJoinToken(ctx context.Context, opts JoinOptions) (nodeToken, nodeNa
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("request panel: %w", err)
 	}
