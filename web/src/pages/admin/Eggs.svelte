@@ -27,6 +27,67 @@
   let newNestName = '';
   let creatingNest = false;
 
+  // Egg.json import (Pterodactyl PTDL_v2)
+  let showImportModal = false;
+  let importNestId = 1;
+  let importFile = null;
+  let importFileName = '';
+  let importing = false;
+  let importError = '';
+
+  async function onImportFileChange(e) {
+    importError = '';
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    importFile = f;
+    importFileName = f.name;
+  }
+
+  async function doImportEgg(e) {
+    e.preventDefault();
+    importError = '';
+    if (!importFile) {
+      importError = 'Please select an egg.json file.';
+      return;
+    }
+    let text;
+    try {
+      text = await importFile.text();
+    } catch (err) {
+      importError = 'Could not read file.';
+      return;
+    }
+    let egg;
+    try {
+      egg = JSON.parse(text);
+    } catch (err) {
+      importError = 'File is not valid JSON.';
+      return;
+    }
+    importing = true;
+    try {
+      const res = await apiFetch('/api/admin/eggs/import', {
+        method: 'POST',
+        body: { nest_id: Number(importNestId), egg },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showImportModal = false;
+        importFile = null;
+        importFileName = '';
+        await loadData();
+        alert(`Imported "${data.name}" with ${data.variables} variables.`);
+      } else {
+        const err = await res.json();
+        importError = err.error || 'Import failed';
+      }
+    } catch (err) {
+      importError = err.message || 'Error';
+    } finally {
+      importing = false;
+    }
+  }
+
   // Variables Management Modal
   let showVarModal = false;
   let targetEgg = null;
@@ -230,12 +291,20 @@
       <span class="text-garuda-muted text-xs">Total: {eggs.length}</span>
     </div>
 
-    <button
-      on:click={() => (showCreateModal = true)}
-      class="self-start sm:self-auto px-3 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200 uppercase tracking-wider"
-    >
-      + Tambah Egg
-    </button>
+    <div class="flex gap-2">
+      <button
+        on:click={() => (showImportModal = true)}
+        class="self-start sm:self-auto px-3 py-1 hover:bg-garuda-hover border border-garuda-border text-garuda-muted hover:text-slate-200 uppercase tracking-wider"
+      >
+        Import egg.json
+      </button>
+      <button
+        on:click={() => (showCreateModal = true)}
+        class="self-start sm:self-auto px-3 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200 uppercase tracking-wider"
+      >
+        + Tambah Egg
+      </button>
+    </div>
   </div>
 
   {#if errorMsg}
@@ -466,6 +535,73 @@
               class="px-4 py-1.5 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-100 uppercase tracking-wider font-semibold disabled:opacity-50"
             >
               {submitting ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Modal Import egg.json -->
+  {#if showImportModal}
+    <div class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div class="bg-garuda-surface border border-garuda-border max-w-lg w-full p-5">
+        <div class="flex items-center justify-between pb-2 mb-3 border-b border-garuda-border">
+          <h3 class="font-bold text-slate-100 uppercase tracking-wider">Import egg.json</h3>
+          <button on:click={() => (showImportModal = false)} class="text-garuda-muted hover:text-white">&times;</button>
+        </div>
+
+        <form on:submit={doImportEgg} class="space-y-3">
+          <p class="text-[12px] text-garuda-muted">
+            Upload a Pterodactyl egg export (<span class="font-mono">egg.json</span>, PTDL_v2).
+            The egg and its variables will be imported into the selected nest.
+          </p>
+
+          <div>
+            <label for="import-nest" class="block text-[11px] uppercase text-garuda-muted mb-1">Nest</label>
+            <select
+              id="import-nest"
+              bind:value={importNestId}
+              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
+            >
+              {#each nests as n}
+                <option value={n.id}>{n.name}</option>
+              {/each}
+            </select>
+          </div>
+
+          <div>
+            <label for="import-file" class="block text-[11px] uppercase text-garuda-muted mb-1">Egg file</label>
+            <input
+              id="import-file"
+              type="file"
+              accept=".json,application/json"
+              on:change={onImportFileChange}
+              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 text-[12px] file:mr-3 file:px-3 file:py-1 file:border file:border-garuda-border file:bg-garuda-card file:text-slate-200 hover:file:bg-garuda-hover"
+            />
+            {#if importFileName}
+              <p class="text-[12px] text-garuda-muted mt-1">Selected: <span class="font-mono">{importFileName}</span></p>
+            {/if}
+          </div>
+
+          {#if importError}
+            <div class="p-2 border-l-2 border-garuda-danger bg-garuda-bg text-rose-400 text-[12px]">{importError}</div>
+          {/if}
+
+          <div class="pt-3 border-t border-garuda-border flex items-center justify-end gap-2">
+            <button
+              type="button"
+              on:click={() => (showImportModal = false)}
+              class="px-3 py-1.5 border border-garuda-border text-garuda-muted hover:bg-garuda-hover"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={importing}
+              class="px-4 py-1.5 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-100 uppercase tracking-wider font-semibold disabled:opacity-50"
+            >
+              {importing ? 'Importing...' : 'Import'}
             </button>
           </div>
         </form>

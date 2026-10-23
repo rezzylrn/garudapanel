@@ -347,3 +347,158 @@ func (s *Server) handleNestsCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 var _ = chi.URLParam // keep chi import for pathID pattern
+
+// ---- Pterodactyl egg.json import ----
+
+// pteroEgg mirrors the PTDL_v2 egg export format from Pterodactyl.
+// config.files / config.logs may be either JSON strings or objects.
+type pteroEgg struct {
+	Name        string            `json:"name"`
+	Author      string            `json:"author"`
+	Description string            `json:"description"`
+	DockerImages map[string]string `json:"docker_images"`
+	Startup     string            `json:"startup"`
+	Config      struct {
+		Files   any `json:"files"`
+		Startup struct {
+			Done string `json:"done"`
+		} `json:"startup"`
+		Logs any    `json:"logs"`
+		Stop string `json:"stop"`
+	} `json:"config"`
+	Scripts struct {
+		Installation struct {
+			Script     string `json:"script"`
+			Container  string `json:"container"`
+			Entrypoint string `json:"entrypoint"`
+		} `json:"installation"`
+	} `json:"scripts"`
+	Variables []struct {
+		Name         string `json:"name"`
+		Description  string `json:"description"`
+		EnvVariable  string `json:"env_variable"`
+		DefaultValue string `json:"default_value"`
+		UserViewable bool   `json:"user_viewable"`
+		UserEditable bool   `json:"user_editable"`
+	} `json:"variables"`
+}
+
+type eggImportReq struct {
+	NestID int64           `json:"nest_id"`
+	Egg    json.RawMessage `json:"egg"`
+}
+
+// asJSONString normalizes a value that may be a JSON string or an object
+// into its JSON string representation.
+func asJSONString(v any) string {
+	if v == nil {
+		return "{}"
+	}
+	if s, ok := v.(string); ok {
+		if s == "" {
+			return "{}"
+		}
+		return s
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+// handleEggsImport imports a Pterodactyl egg.json (PTDL_v2). The frontend
+// reads the uploaded file client-side and POSTs {nest_id, egg: {...}}.
+func (s *Server) handleEggsImport(w http.ResponseWriter, r *http.Request) {
+	var req eggImportReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeErr(w, 400, "invalid body")
+		return
+	}
+	if req.NestID <= 0 {
+		writeErr(w, 422, "nest_id required")
+		return
+	}
+	var nestExists int
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM nests WHERE id=?`, req.NestID).Scan(&nestExists); err != nil || nestExists == 0 {
+		writeErr(w, 422, "nest_id does not exist")
+		return
+	}
+	var pe pteroEgg
+	if err := json.Unmarshal(req.Egg, &pe); err != nil {
+		writeErr(w, 422, "egg is not valid JSON: "+err.Error())
+		return
+	}
+	if pe.Name == "" || len(pe.DockerImages) == 0 || pe.Startup == "" {
+		writeErr(w, 422, "egg.json must contain name, docker_images and startup")
+		return
+	}
+
+	imagesJSON, _ := json.Marshal(pe.DockerImages)
+	legacyImage := ""
+	for _, v := range pe.DockerImages {
+		legacyImage = v
+		break
+	}
+	entrypoint := pe.Scripts.Installation.Entrypoint
+	if entrypoint == "" {
+		entrypoint = "ash"
+	}
+	stop := pe.Config.Stop
+	if stop == "" {
+		stop = "^C"
+	}
+	legacyStop := stop
+	if legacyStop == "^C" {
+		legacyStop = "SIGINT"
+	}
+
+	tx, err := s.DB.Begin()
+	if err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec(`INSERT INTO eggs
+		(nest_id, name, author, description, docker_image, docker_images, startup_cmd,
+		 stop_signal, config_startup_done, config_stop, config_files, config_logs,
+		 install_script, install_container, install_entrypoint)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		req.NestID, pe.Name, pe.Author, pe.Description, legacyImage, string(imagesJSON), pe.Startup,
+		legacyStop, pe.Config.Startup.Done, stop,
+		asJSONString(pe.Config.Files), asJSONString(pe.Config.Logs),
+		pe.Scripts.Installation.Script, pe.Scripts.Installation.Container, entrypoint)
+	if err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	eggID, _ := res.LastInsertId()
+
+	imported := 0
+	for _, v := range pe.Variables {
+		envName := v.EnvVariable
+		if envName == "" {
+			envName = v.Name
+		}
+		desc := v.Description
+		if v.Name != "" && v.Name != envName {
+			desc = v.Name + "\n" + desc
+		}
+		if _, err := tx.Exec(`INSERT INTO egg_variables
+			(egg_id, name, default_value, user_viewable, user_editable, description)
+			VALUES (?,?,?,?,?,?)`,
+			eggID, envName, v.DefaultValue, v.UserViewable, v.UserEditable, desc); err != nil {
+			continue
+		}
+		imported++
+	}
+	if err := tx.Commit(); err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	actor := auth.SessionFrom(r.Context())
+	activity.Log(s.DB, actor.UserID, 0, "admin.eggs.import",
+		fmt.Sprintf("egg=%s variables=%d", pe.Name, imported))
+	writeJSON(w, 201, map[string]any{"id": eggID, "name": pe.Name, "variables": imported})
+}

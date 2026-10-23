@@ -74,6 +74,7 @@ func Routes(s *Server) http.Handler {
 
 		ar.Get("/eggs", s.handleEggsList)
 		ar.Post("/eggs", s.handleEggsCreate)
+		ar.Post("/eggs/import", s.handleEggsImport)
 		ar.Get("/eggs/{id}", s.handleEggsGet)
 		ar.Patch("/eggs/{id}", s.handleEggsUpdate)
 		ar.Delete("/eggs/{id}", s.handleEggsDelete)
