@@ -2,6 +2,7 @@ package dockerrt
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 )
@@ -10,7 +11,8 @@ import (
 // tanpa Docker. Perilaku dibuat deterministic dan sesuai kontrak:
 // - Create menyimpan spec; Start/Stop/Kill mengubah state.
 // - ExecAttach mengalirkan data dari FakeOutput (seolah stdout container)
-//   ke out, dan menyalin apa pun yang ditulis ke in ke FakeInput.
+//   ke out, dan menyalin apa pun yang ditulis ke in ke OnExec callback.
+// - StatsOnce mengembalikan snapshot dari StatsFn (kalau diset).
 // - Semua method reentrant-safe (mutex) karena daemon memanggil dari
 //   beberapa goroutine.
 type FakeRuntime struct {
@@ -25,6 +27,8 @@ type FakeRuntime struct {
 	FakeOutput []byte
 	// OnExec: callback opsional (dipakai test untuk memverifikasi input stdin).
 	OnExec func(ref string, in []byte)
+	// StatsFn: kalau diset, StatsOnce pakai ini.
+	StatsFn func(ref string) StatsSnapshot
 	// execs: jumlah sesi exec yang dibuka (untuk test goroutine leak).
 	execs int
 }
@@ -182,8 +186,19 @@ func (f *FakeRuntime) Specs() map[string]ContainerSpec {
 	return out
 }
 
-func (f *FakeRuntime) Events(_ context.Context, _ chan<- StateEvent) {
-	// fake: tidak ada event async (test panggil SetState manual)
+// StatsOnce: snapshot stats dari StatsFn (kalau diset), else zero snapshot.
+func (f *FakeRuntime) StatsOnce(_ context.Context, ref string) (StatsSnapshot, error) {
+	f.mu.Lock()
+	fn := f.StatsFn
+	_, ok := f.states[ref]
+	f.mu.Unlock()
+	if !ok {
+		return StatsSnapshot{}, fmt.Errorf("container %s not found", ref)
+	}
+	if fn != nil {
+		return fn(ref), nil
+	}
+	return StatsSnapshot{}, nil
 }
 
 type fakeHandle struct{ ctx context.Context }

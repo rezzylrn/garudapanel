@@ -68,6 +68,25 @@ type ExecHandle interface {
 	Close() error
 }
 
+// StatsProvider: runtime yang bisa memberi snapshot stats per container
+// (opsional — diimplement Docker asli + Fake untuk test).
+type StatsProvider interface {
+	// StatsOnce ambil satu snapshot stats container ref.
+	StatsOnce(ctx context.Context, ref string) (StatsSnapshot, error)
+}
+
+// StatsSnapshot rangkuman resource satu container.
+type StatsSnapshot struct {
+	ServerUUID   string  `json:"server_uuid,omitempty"`
+	CPUPercent   float64 `json:"cpu_percent"`
+	MemUsageMB   float64 `json:"mem_used_mb"`
+	MemLimitMB   float64 `json:"mem_limit_mb"`
+	NetRxKB      float64 `json:"net_rx_kb"`
+	NetTxKB      float64 `json:"net_tx_kb"`
+	BlockReadMB  float64 `json:"block_read_mb"`
+	BlockWriteMB float64 `json:"block_write_mb"`
+}
+
 // StateEvent: perubahan status satu container (dari event Docker atau polling).
 type StateEvent struct {
 	Ref    string // uuid server

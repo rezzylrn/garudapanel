@@ -15,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"garudapanel/internal/dockerrt"
 )
 
 // JoinOptions konfigurasi daemon join.
@@ -23,9 +25,11 @@ type JoinOptions struct {
 	JoinToken   string // sekali pakai (kosong kalau sudah punya ResumeToken)
 	ResumeToken string // node token long-lived tersimpan (mode restart)
 	StorePath   string // file simpan node token
+	DataDir     string // dir data daemon (volume server)
 }
 
-// Run menjalankan daemon: join → WS connect → heartbeat sampai sinyal exit.
+// Run menjalankan daemon: join → buat supervisor → WS connect → heartbeat
+// sampai sinyal exit. Daemon = source of truth state container (SPEC §7.1).
 func Join(opts JoinOptions) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -34,7 +38,10 @@ func Join(opts JoinOptions) error {
 	var nodeToken, nodeName string
 	if opts.ResumeToken != "" {
 		nodeToken = opts.ResumeToken
-		nodeName = "resume" // panel tahu nama node dari token
+		// nama node asli diminta dari panel via hello-respone (WS handler
+		// panel balas frame `welcome` berisi nama node). "resume" hanya
+		// placeholder sampai panel konfirmasi.
+		nodeName = ""
 	} else {
 		var err error
 		nodeToken, nodeName, err = exchangeJoinToken(ctx, opts)
@@ -44,9 +51,20 @@ func Join(opts JoinOptions) error {
 		log.Printf("joined as node %q; node token saved to %s", nodeName, opts.StorePath)
 	}
 
-	// 2. Loop utama: sambung WS, kirim hello + heartbeat, reconnect otomatis.
+	// 2. Supervisor: container runtime asli (Docker) — semua state container
+	//    lewat sini (SPEC §7.1: daemon satu-satunya yang boleh ubah state).
+	rt, err := dockerrt.NewDocker()
+	if err != nil {
+		return fmt.Errorf("docker runtime: %w", err)
+	}
+	sup := NewSupervisor(rt, SupervisorConfig{
+		DataDir: opts.DataDir,
+	})
+	sup.WatchEvents(ctx)
+
+	// 3. Loop utama: sambung WS, kirim hello + heartbeat, reconnect otomatis.
 	for {
-		if err := runWS(ctx, opts, nodeToken, nodeName); err != nil {
+		if err := runWS(ctx, opts, nodeToken, nodeName, sup); err != nil {
 			log.Printf("ws: %v", err)
 		}
 		select {
