@@ -37,7 +37,8 @@ log_err() {
 # 1. Root check
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        log_err "Jalankan sebagai root: sudo bash <(curl -fsSL https://github.com/${GITHUB_REPO}/releases/latest/download/install.sh)"
+        log_err "Jalankan sebagai root:"
+        echo "  curl -fsSL https://github.com/${GITHUB_REPO}/releases/latest/download/install.sh -o /tmp/gp-install.sh && sudo bash /tmp/gp-install.sh"
         exit 1
     fi
 }
@@ -476,7 +477,7 @@ main() {
     fi
 
     echo "Uninstall command:"
-    echo "  sudo bash <(curl -fsSL https://github.com/${GITHUB_REPO}/releases/latest/download/install.sh) --uninstall"
+    echo "  curl -fsSL https://github.com/${GITHUB_REPO}/releases/latest/download/install.sh -o /tmp/gp-install.sh && sudo bash /tmp/gp-install.sh --uninstall"
     echo "  or locally: sudo /usr/local/bin/install.sh --uninstall"
     echo "=================================================="
 }
