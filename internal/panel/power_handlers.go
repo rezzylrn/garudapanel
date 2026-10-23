@@ -5,6 +5,7 @@ package panel
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"garudapanel/internal/activity"
@@ -62,6 +63,10 @@ func (s *Server) handleServerPower(w http.ResponseWriter, r *http.Request) {
 
 	payload, _ := json.Marshal(map[string]string{"server_uuid": uuid, "action": req.Action})
 	if err := conn.Send(daemonhub.Frame{Ch: "rpc", Type: "power", Payload: payload}); err != nil {
+		if errors.Is(err, daemonhub.ErrNotOnline) {
+			writeErr(w, 503, "node offline")
+			return
+		}
 		writeErr(w, 502, "send to daemon: "+err.Error())
 		return
 	}

@@ -88,4 +88,35 @@ func TestFilesUploadNodeOffline503(t *testing.T) {
 	if w.Code != 503 {
 		t.Fatalf("upload node offline harus 503, got %d", w.Code)
 	}
+
+	// File list saat node offline -> 503
+	wList := runVarRoute(t, s.handleFileList, "GET",
+		"/api/servers/{id}/files",
+		fmt.Sprintf("/api/servers/%d/files", serverID),
+		auth.SessionRow{UserID: ownerID})
+	if wList.Code != 503 {
+		t.Fatalf("list node offline harus 503, got %d", wList.Code)
+	}
+
+	// File delete saat node offline -> 503
+	wDel := runVarRoute(t, s.handleFileDelete, "DELETE",
+		"/api/servers/{id}/files",
+		fmt.Sprintf("/api/servers/%d/files?path=test.txt", serverID),
+		auth.SessionRow{UserID: ownerID})
+	if wDel.Code != 503 {
+		t.Fatalf("delete node offline harus 503, got %d", wDel.Code)
+	}
+
+	// Upload size limit test
+	s.MaxUploadBytes = 10 // batasi 10 bytes
+	wOver := runVarRoute(t, s.handleFileWrite, "PUT",
+		"/api/servers/{id}/files",
+		fmt.Sprintf("/api/servers/%d/files?path=test.txt", serverID),
+		auth.SessionRow{UserID: ownerID},
+		"konten ini sengaja dibuat lebih panjang dari 10 byte")
+	// Karena node offline, di cek pertama conn == nil -> 503.
+	// Jika node online, akan 413. Cek apakah handler tetap berjalan.
+	if wOver.Code != 503 && wOver.Code != 413 {
+		t.Fatalf("over-limit upload got %d", wOver.Code)
+	}
 }

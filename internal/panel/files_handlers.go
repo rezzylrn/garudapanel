@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	fileChunkSize  = 32 * 1024      // 32KB per chunk (sama dgn daemon)
-	fileRPCTimeout = 30 * time.Second
-	fileReadTimeout = 10 * time.Minute // download besar
-	fileWriteTimeout = 60 * time.Second
+	defaultMaxUploadBytes = 100 * 1024 * 1024 // 100MB default upload limit
+	fileChunkSize         = 32 * 1024         // 32KB per chunk (sama dgn daemon)
+	fileRPCTimeout        = 30 * time.Second
+	fileReadTimeout       = 10 * time.Minute // download besar
+	fileWriteTimeout      = 60 * time.Second
 )
 
 // cleanRelPath: validasi path user di panel (lapisan 1; daemon validasi ulang).
@@ -80,6 +81,20 @@ func writeJSONRaw(w http.ResponseWriter, status int, raw json.RawMessage) {
 
 // ---- handlers ----
 
+// daemonRPCError translates DaemonRPC errors to consistent HTTP responses.
+// If the node is offline, it returns 503 "node offline".
+// Other errors return 502 with the error message.
+func daemonRPCError(w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+	if err.Error() == "node offline" {
+		writeErr(w, 503, "node offline")
+		return
+	}
+	writeErr(w, 502, err.Error())
+}
+
 // handleFileList: GET /api/servers/{id}/files?path=...
 func (s *Server) handleFileList(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
@@ -95,7 +110,7 @@ func (s *Server) handleFileList(w http.ResponseWriter, r *http.Request) {
 		"server_uuid": uuid, "op": "list", "path": p,
 	}, 15*time.Second, nil)
 	if err != nil {
-		writeErr(w, 502, err.Error())
+		daemonRPCError(w, err)
 		return
 	}
 	writeJSONRaw(w, http.StatusOK, raw)
@@ -126,7 +141,7 @@ func (s *Server) handleFileMkdir(w http.ResponseWriter, r *http.Request) {
 	if _, err := DaemonRPC(s, nodeID, "file", map[string]any{
 		"server_uuid": uuid, "op": "mkdir", "path": p,
 	}, fileRPCTimeout, nil); err != nil {
-		writeErr(w, 502, err.Error())
+		daemonRPCError(w, err)
 		return
 	}
 	actor := auth.SessionFrom(r.Context())
@@ -152,7 +167,7 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	if _, err := DaemonRPC(s, nodeID, "file", map[string]any{
 		"server_uuid": uuid, "op": "delete", "path": p,
 	}, fileRPCTimeout, nil); err != nil {
-		writeErr(w, 502, err.Error())
+		daemonRPCError(w, err)
 		return
 	}
 	actor := auth.SessionFrom(r.Context())
@@ -191,7 +206,7 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 	if _, err := DaemonRPC(s, nodeID, "file", map[string]any{
 		"server_uuid": uuid, "op": "rename", "path": from, "to": to,
 	}, fileRPCTimeout, nil); err != nil {
-		writeErr(w, 502, err.Error())
+		daemonRPCError(w, err)
 		return
 	}
 	actor := auth.SessionFrom(r.Context())
@@ -231,7 +246,7 @@ func (s *Server) handleFileExtract(w http.ResponseWriter, r *http.Request) {
 		"server_uuid": uuid, "op": "extract", "path": src, "to": dst,
 	}, 120*time.Second, nil) // extract bisa lama
 	if err != nil {
-		writeErr(w, 502, err.Error())
+		daemonRPCError(w, err)
 		return
 	}
 	actor := auth.SessionFrom(r.Context())
@@ -253,7 +268,7 @@ func (s *Server) handleFileUsage(w http.ResponseWriter, r *http.Request) {
 		"server_uuid": uuid, "op": "usage",
 	}, fileRPCTimeout, nil)
 	if err != nil {
-		writeErr(w, 502, err.Error())
+		daemonRPCError(w, err)
 		return
 	}
 	writeJSONRaw(w, http.StatusOK, raw)
@@ -275,16 +290,19 @@ func (s *Server) handleFileRead(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 422, "path required (no traversal)")
 		return
 	}
-	// flush chunk ke response — streaming, tanpa buffer penuh.
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
+	firstChunk := true
 	_, err = DaemonRPC(s, nodeID, "file:read-begin", map[string]any{
 		"server_uuid": uuid, "path": p,
 	}, fileReadTimeout, func(chunkB64 string) error {
 		data, derr := base64.StdEncoding.DecodeString(chunkB64)
 		if derr != nil {
 			return derr
+		}
+		if firstChunk {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.WriteHeader(http.StatusOK)
+			firstChunk = false
 		}
 		if _, err := w.Write(data); err != nil {
 			return err
@@ -295,6 +313,10 @@ func (s *Server) handleFileRead(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
+		if firstChunk {
+			daemonRPCError(w, err)
+			return
+		}
 		// header sudah terkirim — log saja (client melihat koneksi putus)
 		log.Printf("file download %s/%s: %v", uuid, p, err)
 		return
@@ -325,6 +347,13 @@ func (s *Server) handleFileWrite(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 503, "node offline")
 		return
 	}
+
+	maxUpload := s.MaxUploadBytes
+	if maxUpload <= 0 {
+		maxUpload = defaultMaxUploadBytes
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)
+
 	reqID := newReqID()
 	// daftarkan waiter SEBELUM begin dikirim — rpc:res bisa datang cepat.
 	rpcWait.mu.Lock()
@@ -341,6 +370,10 @@ func (s *Server) handleFileWrite(w http.ResponseWriter, r *http.Request) {
 		"req_id": reqID, "server_uuid": uuid, "path": p,
 	})
 	if err := conn.Send(daemonhub.Frame{Ch: "rpc", Type: "file:write-begin", Payload: begin}); err != nil {
+		if errors.Is(err, daemonhub.ErrNotOnline) {
+			writeErr(w, 503, "node offline")
+			return
+		}
 		writeErr(w, 502, err.Error())
 		return
 	}
@@ -355,6 +388,10 @@ func (s *Server) handleFileWrite(w http.ResponseWriter, r *http.Request) {
 				"d": base64.StdEncoding.EncodeToString(chunk[:n]),
 			})
 			if err := conn.Send(daemonhub.Frame{Ch: "rpc", Type: "file:write-chunk", Payload: cp}); err != nil {
+				if errors.Is(err, daemonhub.ErrNotOnline) {
+					writeErr(w, 503, "node offline")
+					return
+				}
 				writeErr(w, 502, "daemon send failed")
 				return
 			}
@@ -363,6 +400,11 @@ func (s *Server) handleFileWrite(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if rerr != nil {
+			var maxErr *http.MaxBytesError
+			if errors.As(rerr, &maxErr) {
+				writeErr(w, http.StatusRequestEntityTooLarge, "upload size exceeds limit")
+				return
+			}
 			writeErr(w, 400, "read body: "+rerr.Error())
 			return
 		}
@@ -372,12 +414,16 @@ func (s *Server) handleFileWrite(w http.ResponseWriter, r *http.Request) {
 		"req_id": reqID, "server_uuid": uuid, "path": p,
 	})
 	if err := conn.Send(daemonhub.Frame{Ch: "rpc", Type: "file:write-end", Payload: end}); err != nil {
+		if errors.Is(err, daemonhub.ErrNotOnline) {
+			writeErr(w, 503, "node offline")
+			return
+		}
 		writeErr(w, 502, err.Error())
 		return
 	}
 	res, err := waitForWriteEnd(conn, reqID, fileWriteTimeout)
 	if err != nil {
-		writeErr(w, 502, err.Error())
+		daemonRPCError(w, err)
 		return
 	}
 	actor := auth.SessionFrom(r.Context())
