@@ -1,6 +1,29 @@
 #!/usr/bin/env bash
 # GarudaPanel Interactive One-Line Installer
 # Supported OS: Ubuntu / Debian (x86_64 / arm64)
+INSTALLER_URL="https://github.com/rezzylrn/garudapanel/releases/latest/download/install.sh"
+if [ ! -t 0 ]; then
+    # stdin adalah pipe (curl | bash): download ulang ke temp file lalu exec ulang
+    # supaya prompt 'read' bisa baca dari terminal
+    tmpfile=$(mktemp /tmp/gp-install.XXXXXX.sh)
+    if ! curl -fsSL "$INSTALLER_URL" -o "$tmpfile"; then
+        echo "[ERROR] Failed to download installer from ${INSTALLER_URL}" >&2
+        rm -f "$tmpfile"
+        exit 1
+    fi
+    chmod +x "$tmpfile"
+    if [ "$(id -u)" -ne 0 ]; then
+        if ! command -v sudo >/dev/null 2>&1; then
+            echo "[ERROR] sudo is required to run the installer when not running as root." >&2
+            rm -f "$tmpfile"
+            exit 1
+        fi
+        exec sudo bash "$tmpfile" "$@"
+    else
+        exec bash "$tmpfile" "$@"
+    fi
+fi
+
 set -euo pipefail
 
 INSTALL_DIR="/usr/local/bin"
