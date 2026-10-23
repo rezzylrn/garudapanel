@@ -47,7 +47,8 @@ func (s *Server) nodeOut(id int64) (map[string]any, error) {
 }
 
 func (s *Server) handleNodesList(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.DB.Query(`SELECT id FROM nodes ORDER BY id`)
+	rows, err := s.DB.Query(`SELECT n.id, n.location_id, n.name, n.fqdn, n.memory_limit_mb, n.disk_limit_mb, n.created_at,
+		(n.daemon_token_hash IS NOT NULL AND n.daemon_token_hash != '') FROM nodes n ORDER BY n.id`)
 	if err != nil {
 		writeErr(w, 500, "db error")
 		return
@@ -55,13 +56,24 @@ func (s *Server) handleNodesList(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	out := []map[string]any{}
 	for rows.Next() {
-		var id int64
-		_ = rows.Scan(&id)
-		n, err := s.nodeOut(id)
-		if err != nil {
-			continue
+		var id, locID, mem, disk, created int64
+		var name, fqdn string
+		var tokenSet bool
+		if err := rows.Scan(&id, &locID, &name, &fqdn, &mem, &disk, &created, &tokenSet); err != nil {
+			writeErr(w, 500, "scan error")
+			return
 		}
-		out = append(out, n)
+		out = append(out, map[string]any{
+			"id":              id,
+			"location_id":     locID,
+			"name":            name,
+			"fqdn":            fqdn,
+			"memory_limit_mb": mem,
+			"disk_limit_mb":   disk,
+			"created_at":      created,
+			"joined":          tokenSet,
+			"online":          s.Hub.IsOnline(id),
+		})
 	}
 	writeJSON(w, 200, out)
 }

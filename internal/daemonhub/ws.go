@@ -146,20 +146,30 @@ func serversSyncPayload(db *sql.DB, nodeID int64) []byte {
 		DiskMB     int64    `json:"disk_mb"`
 		ImageUser  string   `json:"image_user"` // kosong → daemon resolve dari image config
 	}
-	servers := []syncServer{}
+	type rawSyncServer struct {
+		syncServer
+		ip   string
+		port int
+	}
+	rawServers := []rawSyncServer{}
 	for rows.Next() {
-		var s syncServer
-		var ip string
-		var port int
-		if err := rows.Scan(&s.UUID, &s.Image, &s.MemoryMB, &s.CPUPercent, &s.StopSignal, &ip, &port, &s.DiskMB); err != nil {
+		var s rawSyncServer
+		if err := rows.Scan(&s.UUID, &s.Image, &s.MemoryMB, &s.CPUPercent, &s.StopSignal, &s.ip, &s.port, &s.DiskMB); err != nil {
 			continue
 		}
-		s.Port = port
+		s.Port = s.port
+		s.Cmd = []string{"/bin/sh", "-c", "echo 'garuda: startup command belum dikonfigurasi (egg startup phase 3)'"}
+		rawServers = append(rawServers, s)
+	}
+	rows.Close() // pastikan rows ditutup sebelum query serverVariableEnv
+
+	servers := make([]syncServer, 0, len(rawServers))
+	for _, raw := range rawServers {
+		s := raw.syncServer
 		// env: SERVER_IP/PORT + egg variables (nilai server_variables override
 		// default; SPEC §3/§5.8 — variable ikut env container).
-		s.Env = append([]string{"SERVER_IP=" + ip, "SERVER_PORT=" + itoa(port)},
+		s.Env = append([]string{"SERVER_IP=" + raw.ip, "SERVER_PORT=" + itoa(raw.port)},
 			serverVariableEnv(db, s.UUID)...)
-		s.Cmd = []string{"/bin/sh", "-c", "echo 'garuda: startup command belum dikonfigurasi (egg startup phase 3)'"}
 		servers = append(servers, s)
 	}
 	b, err := json.Marshal(map[string]any{"servers": servers})

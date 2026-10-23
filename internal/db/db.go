@@ -22,8 +22,9 @@ func Open(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite %s: %w", path, err)
 	}
-	// SQLite: satu writer; batasi pool agar tidak sering SQLITE_BUSY.
-	sqlDB.SetMaxOpenConns(1)
+	// SQLite WAL: reader konkuren didukung; pool diset ke 8 agar tidak deadlock
+	// saat query bertingkat/konkuren sambil tetap aman untuk single writer SQLite.
+	sqlDB.SetMaxOpenConns(8)
 	if err := sqlDB.Ping(); err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("ping sqlite: %w", err)
