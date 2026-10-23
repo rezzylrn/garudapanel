@@ -261,6 +261,83 @@ ensure_docker() {
     esac
 }
 
+# 5b. Setup PHP frontend (nginx + php-fpm)
+setup_php_frontend() {
+    local panel_addr="${1}"  # e.g. :8080 or 127.0.0.1:8080
+    # Extract host:port for the Go API
+    local api_host="127.0.0.1"
+    local api_port="8080"
+    if [[ "${panel_addr}" =~ :([0-9]+)$ ]]; then
+        api_port="${BASH_REMATCH[1]}"
+    fi
+    if [[ "${panel_addr}" =~ ^([0-9.]+): ]]; then
+        api_host="${BASH_REMATCH[1]}"
+        if [ "${api_host}" = "0.0.0.0" ]; then api_host="127.0.0.1"; fi
+    fi
+
+    log_info "Setting up PHP frontend (nginx + php-fpm)..."
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get install -y -qq nginx php-fpm php-curl php-mbstring > /dev/null 2>&1 || {
+        log_warn "Failed to install nginx/php-fpm. PHP frontend will not be available."
+        return 0
+    }
+
+    local web_root="/var/www/garudapanel"
+    mkdir -p "${web_root}"
+    # Copy PHP frontend from the release bundle (php/ sits next to install.sh in the repo;
+    # when installed via binary download, fetch it from the release)
+    if [ -d "./php" ]; then
+        cp -r ./php/* "${web_root}/"
+    else
+        local php_zip="/tmp/gp-php.zip"
+        if curl -fsSL "https://github.com/${GITHUB_REPO}/releases/latest/download/php-frontend.zip" -o "${php_zip}"; then
+            unzip -o -q "${php_zip}" -d "${web_root}/"
+            rm -f "${php_zip}"
+        else
+            log_warn "Could not download PHP frontend. Skipping."
+            return 0
+        fi
+    fi
+    chown -R www-data:www-data "${web_root}"
+
+    # PHP-FPM pool env for API URL
+    local fpm_ver
+    fpm_ver=$(php -v 2>/dev/null | head -1 | grep -oP '\d+\.\d+' | head -1)
+    if [ -n "${fpm_ver}" ] && [ -d "/etc/php/${fpm_ver}/fpm/pool.d" ]; then
+        if ! grep -q "GP_API_URL" "/etc/php/${fpm_ver}/fpm/pool.d/www.conf" 2>/dev/null; then
+            echo "env[GP_API_URL] = http://${api_host}:${api_port}" >> "/etc/php/${fpm_ver}/fpm/pool.d/www.conf"
+        fi
+        systemctl restart "php${fpm_ver}-fpm" 2>/dev/null || true
+    fi
+
+    # nginx site
+    cat > /etc/nginx/sites-available/garudapanel <<NGINX
+server {
+    listen 80;
+    server_name _;
+    root ${web_root};
+    index index.php;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php${fpm_ver}-fpm.sock;
+    }
+
+    location /assets/ {
+        expires 7d;
+    }
+}
+NGINX
+    ln -sf /etc/nginx/sites-available/garudapanel /etc/nginx/sites-enabled/garudapanel
+    rm -f /etc/nginx/sites-enabled/default
+    nginx -t > /dev/null 2>&1 && systemctl reload nginx || log_warn "nginx config test failed"
+    log_ok "PHP frontend available at http://<server-ip>/ (API: http://${api_host}:${api_port})"
+}
+
 # 6. Setup Panel
 setup_admin_user() {
     local db_path="${1}"
@@ -365,6 +442,9 @@ EOF
     systemctl enable garuda-panel
     systemctl restart garuda-panel
     log_ok "garuda-panel.service enabled and started."
+
+    # PHP frontend (nginx + php-fpm) — serves the web UI on port 80
+    setup_php_frontend "${listen_addr}"
 
     PANEL_SUMMARY_ADDR="${listen_addr}"
     PANEL_DB_PATH="${db_path}"
