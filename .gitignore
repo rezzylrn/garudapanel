@@ -2,3 +2,6 @@ garuda
 garuda-panel.db
 garuda-panel.db-*
 *.test
+test_run.db*
+web/node_modules/
+
