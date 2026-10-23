@@ -45,7 +45,12 @@
           return a.name.localeCompare(b.name);
         });
       } else {
-        errorMsg = 'Gagal memuat file';
+        let detail = '';
+        try {
+          const err = await res.json();
+          detail = err.error || err.message || '';
+        } catch {}
+        errorMsg = detail ? `Gagal memuat file: ${detail}` : 'Gagal memuat file';
       }
     } catch (e) {
       errorMsg = e.message || 'Koneksi gagal';

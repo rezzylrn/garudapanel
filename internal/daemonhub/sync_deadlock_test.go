@@ -55,7 +55,7 @@ func TestServersSyncPayloadNoDeadlock(t *testing.T) {
 
 	go func() {
 		defer close(done)
-		payload = serversSyncPayload(sqlDB, 1)
+		payload = ServersSyncPayload(sqlDB, 1)
 	}()
 
 	select {
@@ -91,6 +91,6 @@ func TestServersSyncPayloadNoDeadlock(t *testing.T) {
 			t.Fatalf("expected SERVER_NAME=MyCustomServer in env, got: %+v", srv.Env)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("DEADLOCK: serversSyncPayload tidak selesai dalam 5 detik")
+		t.Fatal("DEADLOCK: ServersSyncPayload tidak selesai dalam 5 detik")
 	}
 }

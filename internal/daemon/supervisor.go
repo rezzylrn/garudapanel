@@ -114,6 +114,27 @@ func (s *Supervisor) Register(uuid string, spec dockerrt.ContainerSpec) {
 	s.servers[uuid] = &serverState{uuid: uuid, spec: spec, status: dockerrt.StateOffline}
 }
 
+// SyncServers: ganti seluruh registry dengan daftar dari panel.
+// Server yang tidak ada di daftar akan di-unregister (mis. setelah dihapus
+// dari panel). Dipanggil saat menerima servers.sync.
+func (s *Supervisor) SyncServers(specs map[string]dockerrt.ContainerSpec) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for uuid := range s.servers {
+		if _, ok := specs[uuid]; !ok {
+			delete(s.servers, uuid)
+			log.Printf("sync: unregistered removed server %s", uuid)
+		}
+	}
+	for uuid, spec := range specs {
+		if st, ok := s.servers[uuid]; ok {
+			st.spec = spec
+		} else {
+			s.servers[uuid] = &serverState{uuid: uuid, spec: spec, status: dockerrt.StateOffline}
+		}
+	}
+}
+
 // HasServer cek apakah uuid terdaftar.
 func (s *Supervisor) HasServer(uuid string) bool {
 	s.mu.Lock()
@@ -198,8 +219,9 @@ func (s *Supervisor) HandleFrame(f Frame) {
 			log.Printf("servers.sync: bad payload: %v", err)
 			return
 		}
+		specs := make(map[string]dockerrt.ContainerSpec, len(p.Servers))
 		for _, sv := range p.Servers {
-			s.Register(sv.UUID, dockerrt.ContainerSpec{
+			spec := dockerrt.ContainerSpec{
 				Ref:        sv.UUID,
 				Image:      sv.Image,
 				Cmd:        sv.Cmd,
@@ -211,9 +233,19 @@ func (s *Supervisor) HandleFrame(f Frame) {
 				HostPath:   s.volumeFor(sv.UUID),
 				DiskMB:     sv.DiskMB,
 				ImageUser:  sv.ImageUser,
-			})
+			}
+			// Resolve image user jika kosong.
+			if spec.ImageUser == "" {
+				if ip, ok := s.rt.(dockerrt.ImageUserProvider); ok {
+					if user, err := ip.ImageUser(context.Background(), spec.Image); err == nil {
+						spec.ImageUser = user
+					}
+				}
+			}
+			specs[sv.UUID] = spec
 		}
-		log.Printf("servers sync: %d registered", len(p.Servers))
+		s.SyncServers(specs)
+		log.Printf("servers sync: %d registered", len(specs))
 
 	case f.Ch == "rpc" && f.Type == "file":
 		// file manager ops (list/mkdir/delete/rename/extract/usage) —

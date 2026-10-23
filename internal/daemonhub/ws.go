@@ -104,7 +104,7 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 			case "hello":
 				log.Printf("node %d hello", nodeID)
 				// kirim daftar server milik node ini (servers.sync)
-				if payload := serversSyncPayload(db, nodeID); payload != nil {
+				if payload := ServersSyncPayload(db, nodeID); payload != nil {
 					_ = writeFrame(ctx, conn, Frame{Ch: "rpc", Type: "servers.sync", Payload: payload})
 				}
 			case "heartbeat":
@@ -120,9 +120,9 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 	}
 }
 
-// serversSyncPayload: buat payload servers.sync untuk node (server yang
+// ServersSyncPayload: buat payload servers.sync untuk node (server yang
 // terdaftar di node ini) — dikirim saat daemon hello.
-func serversSyncPayload(db *sql.DB, nodeID int64) []byte {
+func ServersSyncPayload(db *sql.DB, nodeID int64) []byte {
 	rows, err := db.Query(`SELECT sv.uuid, e.docker_images, sv.memory_mb, sv.cpu_percent, e.config_stop, a.ip, a.port,
 		sv.disk_mb
 		FROM servers sv
@@ -130,7 +130,7 @@ func serversSyncPayload(db *sql.DB, nodeID int64) []byte {
 		JOIN allocations a ON a.id = sv.allocation_id
 		WHERE sv.node_id = ?`, nodeID)
 	if err != nil {
-		log.Printf("serversSyncPayload: %v", err)
+		log.Printf("ServersSyncPayload: %v", err)
 		return nil
 	}
 	defer rows.Close()

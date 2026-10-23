@@ -8,6 +8,7 @@ import (
 
 	"garudapanel/internal/activity"
 	"garudapanel/internal/auth"
+	"garudapanel/internal/daemonhub"
 )
 
 // ---- Servers CRUD (admin) — fase 1: status offline, tanpa daemon ops ----
@@ -130,6 +131,16 @@ func (s *Server) handleServersCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	actor := auth.SessionFrom(r.Context())
 	activity.Log(s.DB, actor.UserID, id, "admin.servers.create", "uuid="+uuid)
+
+	// Push server list ke daemon yang sedang connect agar server baru
+	// langsung ter-register (tanpa ini file manager/console gagal dengan
+	// "server not registered on this node").
+	if conn := s.Hub.Get(req.NodeID); conn != nil {
+		if payload := daemonhub.ServersSyncPayload(s.DB, req.NodeID); payload != nil {
+			_ = conn.Send(daemonhub.Frame{Ch: "rpc", Type: "servers.sync", Payload: payload})
+		}
+	}
+
 	writeJSON(w, 201, map[string]any{"id": id, "uuid": uuid, "status": "offline"})
 }
 
@@ -164,6 +175,8 @@ func (s *Server) handleServersDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor := auth.SessionFrom(r.Context())
+	var nodeID int64
+	_ = s.DB.QueryRow(`SELECT node_id FROM servers WHERE id=?`, id).Scan(&nodeID)
 	tx, err := s.DB.Begin()
 	if err != nil {
 		writeErr(w, 500, "db error")
@@ -190,6 +203,17 @@ func (s *Server) handleServersDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	activity.Log(s.DB, actor.UserID, 0, "admin.servers.delete", fmt.Sprintf("server_id=%d", id))
+
+	// Push server list terbaru ke daemon agar server yang dihapus
+	// langsung unregistered.
+	if nodeID > 0 {
+		if conn := s.Hub.Get(nodeID); conn != nil {
+			if payload := daemonhub.ServersSyncPayload(s.DB, nodeID); payload != nil {
+				_ = conn.Send(daemonhub.Frame{Ch: "rpc", Type: "servers.sync", Payload: payload})
+			}
+		}
+	}
+
 	writeJSON(w, 200, map[string]string{"ok": "deleted"})
 }
 

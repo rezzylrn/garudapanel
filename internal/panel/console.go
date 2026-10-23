@@ -206,6 +206,9 @@ func (s *Server) runConsoleSession(ctx context.Context, conn *websocket.Conn, to
 	statsSubP, _ := json.Marshal(map[string]string{"server_uuid": uuid})
 	_ = dConn.Send(daemonhub.Frame{Ch: "stats", Type: "subscribe", Payload: statsSubP})
 
+	// Beritahu browser bahwa sesi console aktif.
+	_ = sendBrowser(conn, "status", map[string]string{"s": "Connected"})
+
 	// goroutine baca browser: in/resize → daemon
 	go func() {
 		for {
