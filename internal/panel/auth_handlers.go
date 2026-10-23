@@ -18,9 +18,10 @@ import (
 
 // Server menampung dependensi handler REST panel.
 type Server struct {
-	Sessions *auth.SessionStore
-	DB       *sql.DB
-	Hub      *daemonhub.Hub // koneksi daemon aktif (online/offline)
+	Sessions       *auth.SessionStore
+	DB             *sql.DB
+	Hub            *daemonhub.Hub // koneksi daemon aktif (online/offline)
+	MaxUploadBytes int64          // batas ukuran upload (default 100MB, configurable via flag/env)
 }
 
 // ---- helper ----
@@ -195,8 +196,13 @@ func RequestLogger(next http.Handler) http.Handler {
 }
 
 // jsonBody: middleware pembatas ukuran body 1MB untuk request JSON.
+// Request upload file (/files PUT) dilewatkan karena di-handle dengan batas upload tersendiri.
 func limitBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/files") {
+			next.ServeHTTP(w, r)
+			return
+		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		next.ServeHTTP(w, r)
 	})
