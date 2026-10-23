@@ -3,10 +3,29 @@
 Panel manajemen game server ala Pterodactyl dalam satu binary statis Go.
 Spesifikasi lengkap: [SPEC.md](SPEC.md).
 
-## Status: Milestone 1 (fondasi)
+## Status: Milestone 2 (daemon + power + console)
+
+Tambahan milestone-2:
+- **ContainerRuntime interface** (`internal/dockerrt`): implementasi asli Docker
+  SDK v27 + FakeRuntime untuk unit test tanpa Docker. Semua logika daemon
+  ditulis terhadap interface — tidak menyentuh SDK langsung.
+- **Supervisor daemon** (`internal/daemon`): daemon satu-satunya yang boleh
+  mengubah state container (start/stop/restart/kill), tiap transisi state
+  dilaporkan ke panel via WS. Tidak ada auto-restart (MVP).
+- **Power end-to-end**: REST panel → WS RPC multiplex → ContainerRuntime.
+- **Live console**: exec TTY, 2 goroutine per sesi, tutup bersih saat WS putus
+  (test: 100x buka-tutup, goroutine kembali ke baseline — `go test -race` hijau).
+- **Ring buffer 100KB** log terakhir per container + replay saat reconnect.
+- **Console browser↔panel**: token sekali pakai expiry 60 detik, frame
+  `{t:auth|in|out|stat|status|resize}`, throttle 2000 baris/100ms, maks 30
+  sesi per server.
+- **Stats**: snapshot docker stats per 2 detik via WS (`StatsProvider`).
+- **Streaming murni**: console I/O via io.Copy + io.Pipe; tidak ada buffer
+  file penuh di RAM; WS read limit 1MB.
+
+## Milestone 1 (fondasi)
 
 Yang sudah jalan:
-- Panel HTTP (chi + net/http std), DB SQLite WAL (modernc.org/sqlite, pure-Go, tanpa CGO), migrasi SQL embedded.
 - Auth: login/logout, session token stateful revocable (disimpan sebagai SHA-256 hash), argon2id, rate limit login 5x/menit/IP, RBAC (admin/owner).
 - REST admin: CRUD users, locations, nodes (+ join token sekali pakai, expiry 15 menit), allocations, nests, eggs, servers.
 - Daemon skeleton: tukar join token → node token long-lived, reverse WebSocket ke panel, heartbeat tiap 10 detik. Panel mencatat node online/offline.

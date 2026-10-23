@@ -44,6 +44,7 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 		defer conn.Close(websocket.StatusInternalError, "closing")
 
 		c := &Conn{NodeID: nodeID, Name: name}
+		conn.SetReadLimit(1 << 20) // 1MB max frame (console payload besar aman)
 		wasOffline := hub.Add(c)
 		if wasOffline {
 			log.Printf("hub: node %d (%s) online", nodeID, name)

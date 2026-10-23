@@ -1,9 +1,7 @@
 package panel
 
 import (
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -208,12 +206,6 @@ func (s *Server) handleNodesDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	activity.Log(s.DB, actor.UserID, 0, "admin.nodes.delete", fmt.Sprintf("node_id=%d", id))
 	writeJSON(w, 200, map[string]string{"ok": "deleted"})
-}
-
-// sha256Hex helper (dipakai daemon register juga).
-func sha256Hex(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:])
 }
 
 func stringsJoin(elems []string, sep string) string {

@@ -35,16 +35,21 @@ func (s *Server) handleServerPower(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// server ada + ambil node & uuid
+	// server ada + ambil node, uuid, owner (cek akses: owner atau admin)
 	var uuid string
-	var nodeID int64
-	err := s.DB.QueryRow(`SELECT uuid, node_id FROM servers WHERE id=?`, id).Scan(&uuid, &nodeID)
+	var nodeID, ownerID int64
+	err := s.DB.QueryRow(`SELECT uuid, node_id, owner_id FROM servers WHERE id=?`, id).Scan(&uuid, &nodeID, &ownerID)
 	if err == sql.ErrNoRows {
 		writeErr(w, 404, "server not found")
 		return
 	}
 	if err != nil {
 		writeErr(w, 500, "db error")
+		return
+	}
+	sess := auth.SessionFrom(r.Context())
+	if !auth.IsOwnerOrAdmin(sess, ownerID) {
+		writeErr(w, 403, "not owner")
 		return
 	}
 

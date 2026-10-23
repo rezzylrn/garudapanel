@@ -40,7 +40,7 @@ func (s *Server) handleDaemonJoin(w http.ResponseWriter, r *http.Request) {
 	}
 	var nodeID int64
 	err = tx.QueryRow(`SELECT node_id FROM node_join_tokens WHERE token_hash=?`,
-		sha256Hex(req.JoinToken)).Scan(&nodeID)
+		auth.TokenHash(req.JoinToken)).Scan(&nodeID)
 	if err != nil {
 		writeErr(w, 500, "db error")
 		return
