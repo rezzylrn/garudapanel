@@ -11,7 +11,60 @@ SQLite for storage, the web UI embedded, and a daemon mode for nodes.
 
 ## Quick start
 
-Build it:
+### One-line installer
+
+On Ubuntu or Debian, run:
+
+```bash
+curl -fsSL https://github.com/rezzylrn/garudapanel/releases/latest/download/install.sh | bash
+```
+
+The interactive script detects dependencies, downloads the static binary, configures systemd services, and outputs the initial admin password.
+
+Example session (Panel only):
+```text
+==================================================
+         GarudaPanel Interactive Installer        
+==================================================
+
+Select component to install:
+  1) Panel only (Web UI + API Server)
+  2) Daemon only (Node Worker Service)
+  3) All-in-one (Panel + Daemon on this server)
+  4) Uninstall GarudaPanel
+
+Enter choice [1-4]: 1
+[INFO] Creating system user 'garuda'...
+[INFO] Using local binary './garuda' -> /usr/local/bin/garuda
+
+[INFO] Configuring GarudaPanel (Web UI + API Server)...
+Listen address [default: :8080]: 
+Data directory [default: /var/lib/garudapanel]: 
+[INFO] Initializing database and generating bootstrap admin credentials...
+[INFO] Writing /etc/systemd/system/garuda-panel.service...
+[OK] garuda-panel.service enabled and started.
+
+==================================================
+              Installation Complete               
+==================================================
+
+Panel Service:
+  Status:  active (garuda-panel.service)
+  Listen:  :8080
+
+Admin Credentials:
+  BOOTSTRAP ADMIN dibuat -> username: admin  password: gp-EXAMPLE_PASSWORD
+  (Save this password now; it will not be displayed again)
+  Logs:    journalctl -u garuda-panel -f
+
+Uninstall command:
+  curl -fsSL https://github.com/rezzylrn/garudapanel/releases/latest/download/install.sh | bash -s -- --uninstall
+==================================================
+```
+
+### Manual build
+
+Build from source:
 
 ```bash
 CGO_ENABLED=0 go build -o garuda ./cmd/garuda
