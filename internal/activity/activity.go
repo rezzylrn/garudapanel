@@ -5,12 +5,20 @@ import "database/sql"
 
 // Log mencatat aksi ke activity_logs. Error di-log lalu diabaikan —
 // kegagalan logging tidak boleh menggagalkan aksi utama.
+// actorID/serverID = 0 berarti tidak ada (disimpan NULL).
 func Log(db *sql.DB, actorID, serverID int64, action, detail string) {
 	if db == nil {
 		return
 	}
+	var actor, srv any
+	if actorID > 0 {
+		actor = actorID
+	}
+	if serverID > 0 {
+		srv = serverID
+	}
 	_, err := db.Exec(`INSERT INTO activity_logs (actor_id, server_id, action, detail) VALUES (?,?,?,?)`,
-		actorID, serverID, action, detail)
+		actor, srv, action, detail)
 	if err != nil {
 		// log saja; jangan panic
 		println("activity log error:", err.Error())
