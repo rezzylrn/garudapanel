@@ -44,29 +44,44 @@ check_root() {
 # 2. OS detection
 check_os() {
     local os_id=""
+    local os_id_like=""
     if [ -f /etc/os-release ]; then
         # shellcheck disable=SC1091
-        os_id=$(. /etc/os-release && echo "${ID:-}")
+        eval "$(grep -E '^(ID|ID_LIKE)=' /etc/os-release)"
+        os_id="${ID:-}"
+        os_id_like="${ID_LIKE:-}"
     fi
 
+    local is_supported=0
     case "${os_id}" in
-        ubuntu|debian)
-            log_ok "Supported OS detected: ${os_id}"
-            ;;
-        *)
-            log_warn "Untested or unsupported operating system: '${os_id:-unknown}'."
-            read -rp "GarudaPanel is built for Ubuntu/Debian. Continue anyway? [y/N]: " continue_os
-            case "${continue_os}" in
-                [yY][eE][sS]|[yY])
-                    log_info "Proceeding on ${os_id}..."
-                    ;;
-                *)
-                    log_err "Installation aborted by user."
-                    exit 1
-                    ;;
-            esac
+        ubuntu|debian|pop|linuxmint)
+            is_supported=1
             ;;
     esac
+
+    if [ "${is_supported}" -eq 0 ]; then
+        case " ${os_id_like} " in
+            *" ubuntu "*|*" debian "*)
+                is_supported=1
+                ;;
+        esac
+    fi
+
+    if [ "${is_supported}" -eq 1 ]; then
+        log_ok "Supported OS detected: ${os_id}${os_id_like:+ (derived from ${os_id_like})}"
+    else
+        log_warn "Untested or unsupported operating system: '${os_id:-unknown}'."
+        read -rp "GarudaPanel is built for Ubuntu/Debian and derivatives. Continue anyway? [y/N]: " continue_os
+        case "${continue_os}" in
+            [yY][eE][sS]|[yY])
+                log_info "Proceeding on ${os_id}..."
+                ;;
+            *)
+                log_err "Installation aborted by user."
+                exit 1
+                ;;
+        esac
+    fi
 }
 
 # 3. System user setup
