@@ -16,7 +16,7 @@ SQLite for storage, the web UI embedded, and a daemon mode for nodes.
 On Ubuntu or Debian, run:
 
 ```bash
-curl -fsSL https://github.com/rezzylrn/garudapanel/releases/latest/download/install.sh | bash
+sudo bash <(curl -fsSL https://github.com/rezzylrn/garudapanel/releases/latest/download/install.sh)
 ```
 
 The interactive script detects dependencies, downloads the static binary, configures systemd services, and outputs the initial admin password.
@@ -58,7 +58,7 @@ Admin Credentials:
   Logs:    journalctl -u garuda-panel -f
 
 Uninstall command:
-  curl -fsSL https://github.com/rezzylrn/garudapanel/releases/latest/download/install.sh | bash -s -- --uninstall
+  sudo bash <(curl -fsSL https://github.com/rezzylrn/garudapanel/releases/latest/download/install.sh) --uninstall
 ==================================================
 ```
 
