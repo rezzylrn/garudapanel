@@ -1,5 +1,5 @@
 <script>
-  import { currentUser, navigate, apiFetch, token } from '../stores.js';
+  import { currentUser, currentRoute, navigate, apiFetch, token } from '../stores.js';
 
   let loggingOut = false;
 
@@ -16,43 +16,84 @@
       loggingOut = false;
     }
   }
+
+  $: route = $currentRoute || '/';
+  $: isAdmin = !!$currentUser?.is_admin;
 </script>
 
-<header class="border-b border-garuda-border/60 bg-garuda-surface/90 backdrop-blur sticky top-0 z-40">
-  <div class="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-    <!-- Brand -->
+<header class="border-b border-garuda-border bg-garuda-surface sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 md:px-5 h-12 flex items-center justify-between">
+    <!-- Brand & Navigation -->
     <div class="flex items-center gap-6">
-      <a href="#/" class="flex items-center gap-2.5 group">
-        <div class="w-8 h-8 rounded bg-gradient-to-tr from-sky-600 to-garuda-primary flex items-center justify-center font-black text-white text-lg tracking-wider shadow-lg shadow-sky-500/20 group-hover:scale-105 transition-transform">
-          G
-        </div>
-        <div class="flex flex-col">
-          <span class="font-extrabold text-base tracking-wider bg-gradient-to-r from-white via-slate-200 to-sky-400 bg-clip-text text-transparent">
-            GARUDA<span class="text-garuda-primary font-light text-xs ml-1 px-1.5 py-0.5 rounded bg-sky-950/60 border border-sky-800/50">PANEL</span>
-          </span>
-        </div>
+      <a href="#/servers" class="flex items-center gap-2">
+        <span class="font-mono font-bold text-xs tracking-wider text-slate-100 uppercase">
+          Garuda<span class="text-garuda-muted">Panel</span>
+        </span>
       </a>
 
       <!-- Primary Nav -->
-      <nav class="hidden md:flex items-center gap-1 text-sm">
-        <a href="#/servers" class="px-3 py-1.5 rounded font-medium text-slate-300 hover:text-white hover:bg-garuda-hover transition">
+      <nav class="hidden md:flex items-center gap-1 text-xs font-mono">
+        <a
+          href="#/servers"
+          class={`px-2.5 py-1 transition ${
+            route === '/' || route.startsWith('/servers')
+              ? 'text-slate-100 bg-garuda-card border border-garuda-border'
+              : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
+          }`}
+        >
           Servers
         </a>
-        {#if $currentUser?.is_admin}
-          <div class="h-4 w-[1px] bg-garuda-border mx-2"></div>
-          <a href="#/admin/nodes" class="px-3 py-1.5 rounded font-medium text-slate-400 hover:text-white hover:bg-garuda-hover transition">
+
+        {#if isAdmin}
+          <span class="text-garuda-border mx-1">|</span>
+          <a
+            href="#/admin/nodes"
+            class={`px-2.5 py-1 transition ${
+              route.startsWith('/admin/nodes')
+                ? 'text-slate-100 bg-garuda-card border border-garuda-border'
+                : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
+            }`}
+          >
             Nodes
           </a>
-          <a href="#/admin/servers" class="px-3 py-1.5 rounded font-medium text-slate-400 hover:text-white hover:bg-garuda-hover transition">
+          <a
+            href="#/admin/servers"
+            class={`px-2.5 py-1 transition ${
+              route.startsWith('/admin/servers')
+                ? 'text-slate-100 bg-garuda-card border border-garuda-border'
+                : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
+            }`}
+          >
             Admin Servers
           </a>
-          <a href="#/admin/eggs" class="px-3 py-1.5 rounded font-medium text-slate-400 hover:text-white hover:bg-garuda-hover transition">
+          <a
+            href="#/admin/eggs"
+            class={`px-2.5 py-1 transition ${
+              route.startsWith('/admin/eggs')
+                ? 'text-slate-100 bg-garuda-card border border-garuda-border'
+                : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
+            }`}
+          >
             Eggs
           </a>
-          <a href="#/admin/users" class="px-3 py-1.5 rounded font-medium text-slate-400 hover:text-white hover:bg-garuda-hover transition">
+          <a
+            href="#/admin/users"
+            class={`px-2.5 py-1 transition ${
+              route.startsWith('/admin/users')
+                ? 'text-slate-100 bg-garuda-card border border-garuda-border'
+                : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
+            }`}
+          >
             Users
           </a>
-          <a href="#/admin/locations" class="px-3 py-1.5 rounded font-medium text-slate-400 hover:text-white hover:bg-garuda-hover transition">
+          <a
+            href="#/admin/locations"
+            class={`px-2.5 py-1 transition ${
+              route.startsWith('/admin/locations')
+                ? 'text-slate-100 bg-garuda-card border border-garuda-border'
+                : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
+            }`}
+          >
             Locations
           </a>
         {/if}
@@ -62,22 +103,17 @@
     <!-- Right Profile & Logout -->
     <div class="flex items-center gap-3">
       {#if $currentUser}
-        <div class="flex items-center gap-2 text-xs">
-          <div class="flex flex-col text-right">
-            <span class="font-medium text-slate-200">{$currentUser.username}</span>
-            <span class="text-garuda-muted text-[10px] font-mono">
-              {$currentUser.is_admin ? 'ADMINISTRATOR' : 'USER'}
-            </span>
-          </div>
-          <div class="w-8 h-8 rounded-full bg-garuda-card border border-garuda-border flex items-center justify-center font-bold text-garuda-primary">
-            {$currentUser.username.slice(0, 2).toUpperCase()}
-          </div>
+        <div class="flex items-center gap-2 text-xs font-mono">
+          <span class="text-slate-300">{$currentUser.username}</span>
+          <span class="text-[10px] uppercase text-garuda-muted px-1.5 py-0.5 border border-garuda-border bg-garuda-card">
+            {$currentUser.is_admin ? 'ADMIN' : 'USER'}
+          </span>
         </div>
         <button
           on:click={handleLogout}
           disabled={loggingOut}
-          class="px-2.5 py-1.5 text-xs text-rose-400 hover:text-rose-300 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-900/40 rounded transition"
-          title="Logout"
+          class="px-2 py-1 text-xs font-mono text-garuda-muted hover:text-garuda-danger border border-garuda-border hover:border-garuda-border bg-garuda-card hover:bg-garuda-hover transition disabled:opacity-50"
+          title="Keluar dari sesi"
         >
           Logout
         </button>
@@ -86,14 +122,14 @@
   </div>
 
   <!-- Mobile Subnav for Admin -->
-  {#if $currentUser?.is_admin}
-    <div class="md:hidden flex items-center gap-2 overflow-x-auto px-4 py-2 border-t border-garuda-border/40 text-xs">
-      <a href="#/servers" class="px-2.5 py-1 rounded bg-garuda-card text-slate-300 whitespace-nowrap">Servers</a>
-      <a href="#/admin/nodes" class="px-2.5 py-1 rounded bg-garuda-card text-slate-300 whitespace-nowrap">Nodes</a>
-      <a href="#/admin/servers" class="px-2.5 py-1 rounded bg-garuda-card text-slate-300 whitespace-nowrap">Admin Servers</a>
-      <a href="#/admin/eggs" class="px-2.5 py-1 rounded bg-garuda-card text-slate-300 whitespace-nowrap">Eggs</a>
-      <a href="#/admin/users" class="px-2.5 py-1 rounded bg-garuda-card text-slate-300 whitespace-nowrap">Users</a>
-      <a href="#/admin/locations" class="px-2.5 py-1 rounded bg-garuda-card text-slate-300 whitespace-nowrap">Locations</a>
+  {#if isAdmin}
+    <div class="md:hidden flex items-center gap-1 overflow-x-auto px-4 py-1.5 border-t border-garuda-border bg-garuda-card text-xs font-mono">
+      <a href="#/servers" class="px-2 py-0.5 text-slate-300 hover:text-white whitespace-nowrap">Servers</a>
+      <a href="#/admin/nodes" class="px-2 py-0.5 text-slate-300 hover:text-white whitespace-nowrap">Nodes</a>
+      <a href="#/admin/servers" class="px-2 py-0.5 text-slate-300 hover:text-white whitespace-nowrap">Admin Servers</a>
+      <a href="#/admin/eggs" class="px-2 py-0.5 text-slate-300 hover:text-white whitespace-nowrap">Eggs</a>
+      <a href="#/admin/users" class="px-2 py-0.5 text-slate-300 hover:text-white whitespace-nowrap">Users</a>
+      <a href="#/admin/locations" class="px-2 py-0.5 text-slate-300 hover:text-white whitespace-nowrap">Locations</a>
     </div>
   {/if}
 </header>

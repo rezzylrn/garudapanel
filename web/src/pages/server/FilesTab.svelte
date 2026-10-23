@@ -294,14 +294,14 @@
   $: pathParts = currentPath ? currentPath.split('/').filter(Boolean) : [];
 </script>
 
-<div class="space-y-4">
-  <!-- Top Bar: Breadcrumb + Quota + Actions -->
-  <div class="bg-garuda-surface border border-garuda-border/80 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
+<div class="space-y-3 font-mono text-xs">
+  <!-- Top Bar -->
+  <div class="border border-garuda-border bg-garuda-surface p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
     <!-- Breadcrumb -->
-    <div class="flex items-center gap-1.5 text-xs font-mono overflow-x-auto py-1">
+    <div class="flex items-center gap-1 overflow-x-auto">
       <button
         on:click={() => handleBreadcrumbClick(-1)}
-        class="text-garuda-primary hover:underline font-bold px-1.5 py-0.5 rounded hover:bg-garuda-hover"
+        class="text-slate-200 hover:text-white px-1.5 py-0.5 hover:bg-garuda-hover"
       >
         /root
       </button>
@@ -309,89 +309,93 @@
         <span class="text-garuda-muted">/</span>
         <button
           on:click={() => handleBreadcrumbClick(idx, pathParts)}
-          class="text-slate-200 hover:text-garuda-primary hover:underline px-1.5 py-0.5 rounded hover:bg-garuda-hover whitespace-nowrap"
+          class="text-slate-200 hover:text-white px-1.5 py-0.5 hover:bg-garuda-hover whitespace-nowrap"
         >
           {part}
         </button>
       {/each}
     </div>
 
-    <!-- Actions & Disk Quota info -->
-    <div class="flex items-center gap-3">
+    <!-- Actions & Quota -->
+    <div class="flex items-center gap-2">
       {#if diskUsage}
-        <div class="text-[11px] font-mono text-garuda-muted hidden sm:block bg-garuda-bg px-2.5 py-1 rounded border border-garuda-border/60">
-          Disk: <span class="text-slate-200 font-bold">{diskUsage.used_mb}</span> / {server.disk_mb} MB
+        <div class="text-[11px] text-garuda-muted hidden sm:block px-2 py-0.5 border border-garuda-border bg-garuda-card">
+          Disk: <span class="text-slate-200 font-semibold">{diskUsage.used_mb}</span> / {server.disk_mb} MB
         </div>
       {/if}
 
       <button
         on:click={() => (showMkdir = true)}
-        class="px-3 py-1.5 bg-garuda-card hover:bg-garuda-hover border border-garuda-border rounded-lg text-xs font-medium text-slate-200 transition"
+        class="px-2.5 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200"
       >
-        + Buat Folder
+        + Direktori
       </button>
 
-      <label class="px-3 py-1.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-400 border border-sky-500/40 rounded-lg text-xs font-medium cursor-pointer transition">
-        <span>Upload File</span>
+      <label class="px-2.5 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200 cursor-pointer">
+        <span>Upload</span>
         <input type="file" multiple on:change={handleFileInput} class="hidden" />
       </label>
     </div>
   </div>
 
   {#if uploading}
-    <div class="p-3 bg-sky-950/40 border border-sky-800/60 rounded-xl text-xs text-sky-300 font-mono flex items-center gap-3 animate-pulse">
-      <div class="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"></div>
-      <span>{uploadProgressText}</span>
+    <div class="p-2 border border-garuda-border bg-garuda-surface text-garuda-muted">
+      {uploadProgressText}
     </div>
   {/if}
 
-  <!-- Modal Buat Folder -->
+  <!-- Prompt Modal Buat Folder -->
   {#if showMkdir}
-    <div class="p-4 bg-garuda-surface border border-garuda-border rounded-xl shadow-xl flex items-center gap-3">
+    <div class="p-3 border border-garuda-border bg-garuda-surface flex items-center gap-2">
       <input
         type="text"
         bind:value={newDirName}
-        placeholder="Nama folder baru..."
-        class="flex-1 bg-garuda-bg border border-garuda-border rounded-lg px-3 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-garuda-primary"
+        placeholder="Nama direktori baru..."
+        class="flex-1 bg-garuda-bg border border-garuda-border px-2.5 py-1 text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
       />
-      <button on:click={createFolder} class="px-3 py-1.5 bg-garuda-primary text-white rounded-lg text-xs font-medium">Buat</button>
-      <button on:click={() => (showMkdir = false)} class="px-3 py-1.5 bg-garuda-card text-slate-400 rounded-lg text-xs">Batal</button>
+      <button on:click={createFolder} class="px-3 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200">
+        Buat
+      </button>
+      <button on:click={() => (showMkdir = false)} class="px-3 py-1 border border-garuda-border text-garuda-muted hover:bg-garuda-hover">
+        Batal
+      </button>
     </div>
   {/if}
 
-  <!-- Modal Rename -->
+  <!-- Prompt Modal Rename -->
   {#if showRename}
-    <div class="p-4 bg-garuda-surface border border-garuda-border rounded-xl shadow-xl flex items-center gap-3">
+    <div class="p-3 border border-garuda-border bg-garuda-surface flex items-center gap-2">
       <input
         type="text"
         bind:value={renameTo}
-        placeholder="Nama path baru..."
-        class="flex-1 bg-garuda-bg border border-garuda-border rounded-lg px-3 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-garuda-primary"
+        placeholder="Target path..."
+        class="flex-1 bg-garuda-bg border border-garuda-border px-2.5 py-1 text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
       />
-      <button on:click={doRename} class="px-3 py-1.5 bg-garuda-primary text-white rounded-lg text-xs font-medium">Simpan</button>
-      <button on:click={() => (showRename = false)} class="px-3 py-1.5 bg-garuda-card text-slate-400 rounded-lg text-xs">Batal</button>
+      <button on:click={doRename} class="px-3 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200">
+        Simpan
+      </button>
+      <button on:click={() => (showRename = false)} class="px-3 py-1 border border-garuda-border text-garuda-muted hover:bg-garuda-hover">
+        Batal
+      </button>
     </div>
   {/if}
 
-  <!-- Editor View or File List -->
+  <!-- File Editor / File List -->
   {#if isEditing}
-    <!-- File Editor -->
-    <div class="bg-garuda-surface border border-garuda-border/80 rounded-xl overflow-hidden shadow-2xl flex flex-col">
-      <div class="p-3 bg-garuda-card/80 border-b border-garuda-border flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="text-xs font-mono text-garuda-primary font-bold">{editingFilePath}</span>
-        </div>
+    <div class="border border-garuda-border bg-garuda-surface flex flex-col">
+      <div class="p-2.5 border-b border-garuda-border bg-garuda-card flex items-center justify-between">
+        <span class="text-slate-200 font-semibold">{editingFilePath}</span>
         <div class="flex items-center gap-2">
           <button
             on:click={saveFile}
             disabled={savingFile}
-            class="px-4 py-1.5 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-400 border border-emerald-500/50 rounded-lg text-xs font-medium transition"
+            class="px-3 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-100 disabled:opacity-50"
           >
-            {savingFile ? 'Menyimpan...' : 'Simpan Perubahan'}
+            {savingFile ? 'Menyimpan...' : 'Simpan'}
           </button>
           <button
             on:click={() => (isEditing = false)}
-            class="px-3 py-1.5 bg-garuda-card hover:bg-garuda-hover text-slate-400 rounded-lg text-xs transition"
+            class="px-2.5 py-1 border border-garuda-border text-garuda-muted hover:bg-garuda-hover"
           >
             Tutup
           </button>
@@ -400,45 +404,42 @@
       <textarea
         bind:value={fileContent}
         rows="22"
-        class="w-full bg-[#070a0f] p-4 text-xs font-mono text-slate-200 focus:outline-none resize-none selection:bg-sky-500/30"
+        class="w-full bg-[#090b0e] p-3 text-xs text-slate-200 focus:outline-none resize-none font-mono"
       ></textarea>
     </div>
   {:else}
-    <!-- Drag & Drop container area -->
+    <!-- Drop area & Table -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
       on:dragover|preventDefault={() => (isDragging = true)}
       on:dragleave|preventDefault={() => (isDragging = false)}
       on:drop={handleDrop}
-      class={`bg-garuda-surface border rounded-xl overflow-hidden shadow-xl transition-all ${
-        isDragging ? 'border-dashed border-garuda-primary bg-sky-950/20' : 'border-garuda-border/80'
-      }`}
+      class={`border bg-garuda-surface ${isDragging ? 'border-dashed border-garuda-muted bg-garuda-card' : 'border-garuda-border'}`}
     >
       {#if isDragging}
-        <div class="p-8 text-center font-mono text-xs text-sky-400 animate-pulse">
-          Lepaskan file di sini untuk mengupload ke {currentPath || '/root'}
+        <div class="p-6 text-center text-xs text-garuda-muted">
+          Lepaskan file untuk mengupload ke {currentPath || '/root'}
         </div>
       {/if}
 
-      <!-- File Table -->
       {#if loading}
-        <div class="py-20 text-center text-xs text-garuda-muted font-mono">Memuat direktori...</div>
+        <div class="py-16 text-center text-xs text-garuda-muted">Memuat file...</div>
       {:else if errorMsg}
-        <div class="p-6 text-center text-xs text-rose-400 font-mono">{errorMsg}</div>
+        <div class="p-4 text-center text-xs text-rose-400">{errorMsg}</div>
       {:else if entries.length === 0}
-        <div class="py-16 text-center text-xs text-garuda-muted font-mono">Direktori ini kosong.</div>
+        <div class="py-12 text-center text-xs text-garuda-muted">Direktori kosong.</div>
       {:else}
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-xs">
             <thead>
-              <tr class="border-b border-garuda-border/60 bg-garuda-card/40 text-garuda-muted font-mono uppercase text-[10px]">
-                <th class="py-3 px-4">Nama</th>
-                <th class="py-3 px-4 w-28">Ukuran</th>
-                <th class="py-3 px-4 w-44">Dimodifikasi</th>
-                <th class="py-3 px-4 text-right w-48">Aksi</th>
+              <tr class="border-b border-garuda-border bg-garuda-card text-garuda-muted text-[11px] uppercase">
+                <th class="py-2 px-3">Nama</th>
+                <th class="py-2 px-3 w-28">Ukuran</th>
+                <th class="py-2 px-3 w-40">Dimodifikasi</th>
+                <th class="py-2 px-3 text-right w-44">Aksi</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-garuda-border/40 font-mono">
+            <tbody class="divide-y divide-garuda-border">
               {#if currentPath}
                 <tr
                   on:click={() => {
@@ -446,43 +447,40 @@
                     parts.pop();
                     navigateTo(parts.join('/'));
                   }}
-                  class="hover:bg-garuda-card/40 cursor-pointer text-garuda-primary"
+                  class="hover:bg-garuda-hover cursor-pointer text-garuda-muted"
                 >
-                  <td class="py-2.5 px-4 font-bold flex items-center gap-2" colspan="4">
-                    <span>.. (Kembali ke folder atas)</span>
-                  </td>
+                  <td class="py-1.5 px-3" colspan="4">.. [Kembali]</td>
                 </tr>
               {/if}
 
               {#each entries as entry}
-                <tr class="hover:bg-garuda-card/40 group transition-colors">
-                  <td class="py-2.5 px-4">
+                <tr class="hover:bg-garuda-hover group">
+                  <td class="py-1.5 px-3">
                     <!-- svelte-ignore a11y-click-events-have-key-events -->
                     <div
                       on:click={() => openFile(entry)}
-                      class="flex items-center gap-2 cursor-pointer font-medium text-slate-200 group-hover:text-garuda-primary transition"
+                      class="flex items-center gap-2 cursor-pointer text-slate-200 hover:text-white"
                     >
                       {#if entry.is_dir}
-                        <span class="text-amber-400 font-bold">[DIR]</span>
+                        <span class="text-garuda-muted">[DIR]</span>
                       {:else}
-                        <span class="text-slate-500">[FILE]</span>
+                        <span class="text-garuda-border">[FILE]</span>
                       {/if}
                       <span>{entry.name}</span>
                     </div>
                   </td>
-                  <td class="py-2.5 px-4 text-garuda-muted">
+                  <td class="py-1.5 px-3 text-garuda-muted">
                     {entry.is_dir ? '-' : formatBytes(entry.size)}
                   </td>
-                  <td class="py-2.5 px-4 text-garuda-muted text-[11px]">
+                  <td class="py-1.5 px-3 text-garuda-muted text-[11px]">
                     {entry.mod_time ? new Date(entry.mod_time).toLocaleString('id-ID') : '-'}
                   </td>
-                  <td class="py-2.5 px-4 text-right">
-                    <div class="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition">
+                  <td class="py-1.5 px-3 text-right">
+                    <div class="flex items-center justify-end gap-1">
                       {#if !entry.is_dir}
                         <button
                           on:click={() => downloadEntry(entry)}
-                          class="px-2 py-1 rounded bg-garuda-card hover:bg-garuda-hover text-slate-300 text-[10px]"
-                          title="Download"
+                          class="px-1.5 py-0.5 border border-garuda-border hover:bg-garuda-card text-garuda-muted hover:text-slate-200 text-[10px]"
                         >
                           Unduh
                         </button>
@@ -491,8 +489,7 @@
                       {#if !entry.is_dir && (entry.name.endsWith('.zip') || entry.name.endsWith('.tar.gz'))}
                         <button
                           on:click={() => extractArchive(entry)}
-                          class="px-2 py-1 rounded bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 text-[10px]"
-                          title="Ekstrak"
+                          class="px-1.5 py-0.5 border border-garuda-border hover:bg-garuda-card text-garuda-muted hover:text-slate-200 text-[10px]"
                         >
                           Ekstrak
                         </button>
@@ -500,16 +497,14 @@
 
                       <button
                         on:click={() => startRename(entry)}
-                        class="px-2 py-1 rounded bg-garuda-card hover:bg-garuda-hover text-slate-300 text-[10px]"
-                        title="Rename"
+                        class="px-1.5 py-0.5 border border-garuda-border hover:bg-garuda-card text-garuda-muted hover:text-slate-200 text-[10px]"
                       >
                         Rename
                       </button>
 
                       <button
                         on:click={() => deleteEntry(entry)}
-                        class="px-2 py-1 rounded bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 text-[10px]"
-                        title="Hapus"
+                        class="px-1.5 py-0.5 border border-garuda-border hover:bg-garuda-card text-rose-400 text-[10px]"
                       >
                         Hapus
                       </button>

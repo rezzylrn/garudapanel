@@ -55,7 +55,6 @@
       const res = await apiFetch(`/api/admin/allocations?node_id=${nodeId}`);
       if (res.ok) {
         const data = await res.json();
-        // filter allocation yang belum dipakai (server_id == 0 / null)
         allocations = data.filter((a) => !a.server_id);
         if (allocations.length > 0) {
           allocationId = allocations[0].id;
@@ -77,7 +76,7 @@
   async function createServer(e) {
     e.preventDefault();
     if (!allocationId) {
-      alert('Node ini tidak memiliki allocation port bebas. Tambah allocation di halaman Nodes dulu.');
+      alert('Node ini tidak memiliki alokasi port bebas');
       return;
     }
     submitting = true;
@@ -131,128 +130,123 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4 font-mono text-xs">
   <!-- Header -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-garuda-border/50">
-    <div>
-      <h1 class="text-xl font-bold text-slate-100 flex items-center gap-2">
-        <span>Admin Servers Management</span>
-        <span class="text-xs px-2 py-0.5 rounded-full bg-garuda-card border border-garuda-border font-mono text-garuda-muted">
-          {servers.length}
-        </span>
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-garuda-border">
+    <div class="flex items-baseline gap-3">
+      <h1 class="text-sm font-bold uppercase tracking-wider text-slate-100">
+        Admin Servers
       </h1>
-      <p class="text-xs text-garuda-muted mt-0.5">Kelola dan deploy server game untuk seluruh user platform.</p>
+      <span class="text-garuda-muted text-xs">Total: {servers.length}</span>
     </div>
 
     <button
       on:click={openCreate}
-      class="px-4 py-2 bg-garuda-primary hover:bg-sky-400 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition shadow-lg shadow-sky-600/20"
+      class="self-start sm:self-auto px-3 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200 uppercase tracking-wider"
     >
-      + Buat Server Baru
+      + Tambah Server
     </button>
   </div>
 
   {#if errorMsg}
-    <div class="p-4 rounded-lg bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs font-mono">{errorMsg}</div>
+    <div class="p-2 border-l-2 border-garuda-danger bg-garuda-surface text-rose-400">{errorMsg}</div>
   {/if}
 
   {#if loading}
-    <div class="py-20 text-center text-xs text-garuda-muted font-mono">Memuat servers...</div>
+    <div class="py-16 text-center text-garuda-muted">Memuat server admin...</div>
   {:else if servers.length === 0}
-    <div class="py-16 text-center text-xs text-garuda-muted font-mono bg-garuda-surface border border-garuda-border/60 rounded-xl">
+    <div class="py-12 text-center text-garuda-muted border border-garuda-border bg-garuda-surface">
       Belum ada server yang dibuat.
     </div>
   {:else}
-    <div class="bg-garuda-surface border border-garuda-border/80 rounded-xl overflow-hidden shadow-xl">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr class="border-b border-garuda-border/60 bg-garuda-card/40 text-garuda-muted font-mono uppercase text-[10px]">
-              <th class="py-3 px-4 w-14">ID</th>
-              <th class="py-3 px-4">Nama Server</th>
-              <th class="py-3 px-4">Owner</th>
-              <th class="py-3 px-4">Node</th>
-              <th class="py-3 px-4">Status</th>
-              <th class="py-3 px-4">RAM / Disk</th>
-              <th class="py-3 px-4 text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-garuda-border/40 font-mono">
-            {#each servers as s}
-              <tr class="hover:bg-garuda-card/40 transition">
-                <td class="py-3 px-4 text-garuda-muted">#{s.id}</td>
-                <td class="py-3 px-4 font-bold text-slate-200">
-                  <button on:click={() => navigate(`/servers/${s.id}/console`)} class="hover:text-garuda-primary text-left">
-                    {s.name}
+    <div class="border border-garuda-border bg-garuda-surface overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="border-b border-garuda-border bg-garuda-card text-garuda-muted text-[11px] uppercase">
+            <th class="py-2 px-3 w-16">ID</th>
+            <th class="py-2 px-3">Nama Server</th>
+            <th class="py-2 px-3">Owner</th>
+            <th class="py-2 px-3">Node</th>
+            <th class="py-2 px-3">RAM / Disk</th>
+            <th class="py-2 px-3">Status</th>
+            <th class="py-2 px-3 text-right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-garuda-border">
+          {#each servers as s}
+            <tr class="hover:bg-garuda-hover">
+              <td class="py-2 px-3 text-garuda-muted">#{s.id}</td>
+              <td class="py-2 px-3 font-semibold text-slate-100">
+                <button on:click={() => navigate(`/servers/${s.id}/console`)} class="hover:underline text-left">
+                  {s.name}
+                </button>
+              </td>
+              <td class="py-2 px-3 text-slate-300">
+                {users.find((u) => u.id === s.owner_id)?.username || `User #${s.owner_id}`}
+              </td>
+              <td class="py-2 px-3 text-slate-300">
+                {nodes.find((n) => n.id === s.node_id)?.name || `Node #${s.node_id}`}
+              </td>
+              <td class="py-2 px-3 text-garuda-muted">
+                {s.memory_mb} MB / {s.disk_mb} MB
+              </td>
+              <td class="py-2 px-3">
+                <span class="px-1.5 py-0.5 border border-garuda-border bg-garuda-card text-[10px] uppercase text-slate-300">
+                  {s.status}
+                </span>
+              </td>
+              <td class="py-2 px-3 text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    on:click={() => navigate(`/servers/${s.id}/console`)}
+                    class="px-2 py-0.5 border border-garuda-border bg-garuda-card hover:bg-garuda-hover text-slate-200 text-[11px]"
+                  >
+                    Buka
                   </button>
-                </td>
-                <td class="py-3 px-4 text-slate-300">
-                  {users.find((u) => u.id === s.owner_id)?.username || `User #${s.owner_id}`}
-                </td>
-                <td class="py-3 px-4 text-slate-300">
-                  {nodes.find((n) => n.id === s.node_id)?.name || `Node #${s.node_id}`}
-                </td>
-                <td class="py-3 px-4">
-                  <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 uppercase">
-                    {s.status}
-                  </span>
-                </td>
-                <td class="py-3 px-4 text-garuda-muted">
-                  {s.memory_mb} MB / {s.disk_mb} MB
-                </td>
-                <td class="py-3 px-4 text-right">
-                  <div class="flex items-center justify-end gap-2">
-                    <button
-                      on:click={() => navigate(`/servers/${s.id}/console`)}
-                      class="px-2.5 py-1 bg-garuda-card hover:bg-garuda-hover text-slate-300 rounded text-[11px]"
-                    >
-                      Buka
-                    </button>
-                    <button
-                      on:click={() => deleteServer(s)}
-                      class="px-2.5 py-1 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/50 rounded text-[11px]"
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+                  <button
+                    on:click={() => deleteServer(s)}
+                    class="px-2 py-0.5 border border-garuda-border bg-garuda-card hover:bg-garuda-hover text-rose-400 text-[11px]"
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
     </div>
   {/if}
 
   <!-- Modal Create Server -->
   {#if showCreateModal}
-    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-garuda-surface border border-garuda-border rounded-xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-        <h3 class="text-base font-bold text-slate-100 mb-1">Deploy Server Game Baru</h3>
-        <p class="text-xs text-garuda-muted mb-5">
-          Tentukan konfigurasi node, template egg, resource limit, dan port alokasi.
-        </p>
+    <div class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div class="bg-garuda-surface border border-garuda-border max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between pb-2 mb-3 border-b border-garuda-border">
+          <h3 class="font-bold text-slate-100 uppercase tracking-wider">Tambah Server Game</h3>
+          <button on:click={() => (showCreateModal = false)} class="text-garuda-muted hover:text-white">&times;</button>
+        </div>
 
-        <form on:submit={createServer} class="space-y-4 font-mono text-xs">
+        <form on:submit={createServer} class="space-y-3">
           <div>
-            <label for="srv-name" class="block text-slate-300 mb-1">Nama Server</label>
+            <label for="srv-name" class="block text-[11px] uppercase text-garuda-muted mb-1">Nama Server</label>
             <input
               id="srv-name"
               type="text"
               bind:value={name}
               required
-              placeholder="Minecraft Survival #1"
-              class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+              placeholder="Minecraft Survival"
+              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
             />
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="srv-owner" class="block text-slate-300 mb-1">Owner User</label>
+              <label for="srv-owner" class="block text-[11px] uppercase text-garuda-muted mb-1">Owner User</label>
               <select
                 id="srv-owner"
                 bind:value={ownerId}
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
               >
                 {#each users as u}
                   <option value={u.id}>{u.username} ({u.email})</option>
@@ -261,12 +255,12 @@
             </div>
 
             <div>
-              <label for="srv-node" class="block text-slate-300 mb-1">Node Target</label>
+              <label for="srv-node" class="block text-[11px] uppercase text-garuda-muted mb-1">Node Target</label>
               <select
                 id="srv-node"
                 bind:value={nodeId}
                 on:change={onNodeChange}
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
               >
                 {#each nodes as n}
                   <option value={n.id}>{n.name} ({n.fqdn})</option>
@@ -277,11 +271,11 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="srv-egg" class="block text-slate-300 mb-1">Game Egg</label>
+              <label for="srv-egg" class="block text-[11px] uppercase text-garuda-muted mb-1">Game Egg</label>
               <select
                 id="srv-egg"
                 bind:value={eggId}
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
               >
                 {#each eggs as eg}
                   <option value={eg.id}>{eg.name}</option>
@@ -290,14 +284,14 @@
             </div>
 
             <div>
-              <label for="srv-alloc" class="block text-slate-300 mb-1">Primary Allocation</label>
+              <label for="srv-alloc" class="block text-[11px] uppercase text-garuda-muted mb-1">Allocation</label>
               <select
                 id="srv-alloc"
                 bind:value={allocationId}
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
               >
                 {#if allocations.length === 0}
-                  <option value={null}>Tidak ada port bebas di node ini</option>
+                  <option value={null}>Tidak ada port bebas</option>
                 {:else}
                   {#each allocations as a}
                     <option value={a.id}>{a.ip}:{a.port}</option>
@@ -309,53 +303,53 @@
 
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label for="srv-ram" class="block text-slate-300 mb-1">Memory (MB)</label>
+              <label for="srv-ram" class="block text-[11px] uppercase text-garuda-muted mb-1">RAM (MB)</label>
               <input
                 id="srv-ram"
                 type="number"
                 bind:value={memoryMb}
                 required
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
               />
             </div>
 
             <div>
-              <label for="srv-disk" class="block text-slate-300 mb-1">Disk (MB)</label>
+              <label for="srv-disk" class="block text-[11px] uppercase text-garuda-muted mb-1">Disk (MB)</label>
               <input
                 id="srv-disk"
                 type="number"
                 bind:value={diskMb}
                 required
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
               />
             </div>
 
             <div>
-              <label for="srv-cpu" class="block text-slate-300 mb-1">CPU Limit (%)</label>
+              <label for="srv-cpu" class="block text-[11px] uppercase text-garuda-muted mb-1">CPU (%)</label>
               <input
                 id="srv-cpu"
                 type="number"
                 bind:value={cpuPercent}
                 required
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
               />
             </div>
           </div>
 
-          <div class="pt-4 border-t border-garuda-border/60 flex items-center justify-end gap-2">
+          <div class="pt-3 border-t border-garuda-border flex items-center justify-end gap-2">
             <button
               type="button"
               on:click={() => (showCreateModal = false)}
-              class="px-4 py-2 bg-garuda-card hover:bg-garuda-hover rounded-lg text-slate-400"
+              class="px-3 py-1.5 border border-garuda-border text-garuda-muted hover:bg-garuda-hover"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={submitting || !allocationId}
-              class="px-5 py-2 bg-garuda-primary hover:bg-sky-400 text-white rounded-lg font-bold transition disabled:opacity-50"
+              class="px-4 py-1.5 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-100 uppercase tracking-wider font-semibold disabled:opacity-50"
             >
-              {submitting ? 'Membuat Server...' : 'Deploy Server'}
+              {submitting ? 'Membuat...' : 'Deploy'}
             </button>
           </div>
         </form>

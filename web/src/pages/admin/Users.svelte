@@ -77,148 +77,145 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4 font-mono text-xs">
   <!-- Header -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-garuda-border/50">
-    <div>
-      <h1 class="text-xl font-bold text-slate-100 flex items-center gap-2">
-        <span>Users Management</span>
-        <span class="text-xs px-2 py-0.5 rounded-full bg-garuda-card border border-garuda-border font-mono text-garuda-muted">
-          {users.length}
-        </span>
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-garuda-border">
+    <div class="flex items-baseline gap-3">
+      <h1 class="text-sm font-bold uppercase tracking-wider text-slate-100">
+        Users
       </h1>
-      <p class="text-xs text-garuda-muted mt-0.5">Kelola akun pengguna dan hak akses administrator.</p>
+      <span class="text-garuda-muted text-xs">Total: {users.length}</span>
     </div>
 
     <button
       on:click={() => (showCreateModal = true)}
-      class="px-4 py-2 bg-garuda-primary hover:bg-sky-400 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition shadow-lg shadow-sky-600/20"
+      class="self-start sm:self-auto px-3 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200 uppercase tracking-wider"
     >
-      + Tambah User Baru
+      + Tambah User
     </button>
   </div>
 
   {#if errorMsg}
-    <div class="p-4 rounded-lg bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs font-mono">{errorMsg}</div>
+    <div class="p-2 border-l-2 border-garuda-danger bg-garuda-surface text-rose-400">{errorMsg}</div>
   {/if}
 
   {#if loading}
-    <div class="py-20 text-center text-xs text-garuda-muted font-mono">Memuat pengguna...</div>
+    <div class="py-16 text-center text-garuda-muted">Memuat pengguna...</div>
   {:else if users.length === 0}
-    <div class="py-16 text-center text-xs text-garuda-muted font-mono bg-garuda-surface border border-garuda-border/60 rounded-xl">
+    <div class="py-12 text-center text-garuda-muted border border-garuda-border bg-garuda-surface">
       Belum ada user terdaftar.
     </div>
   {:else}
-    <div class="bg-garuda-surface border border-garuda-border/80 rounded-xl overflow-hidden shadow-xl">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr class="border-b border-garuda-border/60 bg-garuda-card/40 text-garuda-muted font-mono uppercase text-[10px]">
-              <th class="py-3 px-4 w-16">ID</th>
-              <th class="py-3 px-4">Username</th>
-              <th class="py-3 px-4">Email</th>
-              <th class="py-3 px-4">Role</th>
-              <th class="py-3 px-4 text-right">Aksi</th>
+    <div class="border border-garuda-border bg-garuda-surface overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="border-b border-garuda-border bg-garuda-card text-garuda-muted text-[11px] uppercase">
+            <th class="py-2 px-3 w-16">ID</th>
+            <th class="py-2 px-3">Username</th>
+            <th class="py-2 px-3">Email</th>
+            <th class="py-2 px-3">Role</th>
+            <th class="py-2 px-3 text-right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-garuda-border">
+          {#each users as u}
+            <tr class="hover:bg-garuda-hover">
+              <td class="py-2 px-3 text-garuda-muted">#{u.id}</td>
+              <td class="py-2 px-3 font-semibold text-slate-100">{u.username}</td>
+              <td class="py-2 px-3 text-slate-300">{u.email}</td>
+              <td class="py-2 px-3">
+                {#if u.is_admin}
+                  <span class="px-1.5 py-0.5 border border-garuda-border bg-garuda-card text-emerald-400 text-[10px] uppercase font-bold">
+                    ADMIN
+                  </span>
+                {:else}
+                  <span class="text-garuda-muted text-[10px] uppercase">
+                    USER
+                  </span>
+                {/if}
+              </td>
+              <td class="py-2 px-3 text-right">
+                <button
+                  on:click={() => deleteUser(u)}
+                  class="px-2 py-0.5 border border-garuda-border bg-garuda-card hover:bg-garuda-hover text-rose-400 text-[11px]"
+                >
+                  Hapus
+                </button>
+              </td>
             </tr>
-          </thead>
-          <tbody class="divide-y divide-garuda-border/40 font-mono">
-            {#each users as u}
-              <tr class="hover:bg-garuda-card/40 transition">
-                <td class="py-3 px-4 text-garuda-muted">#{u.id}</td>
-                <td class="py-3 px-4 font-bold text-slate-200">{u.username}</td>
-                <td class="py-3 px-4 text-slate-300">{u.email}</td>
-                <td class="py-3 px-4">
-                  {#if u.is_admin}
-                    <span class="text-[9px] px-2 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800 font-bold">
-                      ADMIN
-                    </span>
-                  {:else}
-                    <span class="text-[9px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                      USER
-                    </span>
-                  {/if}
-                </td>
-                <td class="py-3 px-4 text-right">
-                  <button
-                    on:click={() => deleteUser(u)}
-                    class="px-2.5 py-1 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/50 rounded text-[11px]"
-                  >
-                    Hapus
-                  </button>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+          {/each}
+        </tbody>
+      </table>
     </div>
   {/if}
 
   <!-- Modal Create User -->
   {#if showCreateModal}
-    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-garuda-surface border border-garuda-border rounded-xl max-w-md w-full p-6 shadow-2xl relative font-mono text-xs">
-        <h3 class="text-base font-bold text-slate-100 mb-1">Tambah User Baru</h3>
-        <p class="text-garuda-muted mb-5">Kredensial login untuk akses platform.</p>
+    <div class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div class="bg-garuda-surface border border-garuda-border max-w-md w-full p-5">
+        <div class="flex items-center justify-between pb-2 mb-3 border-b border-garuda-border">
+          <h3 class="font-bold text-slate-100 uppercase tracking-wider">Tambah User Baru</h3>
+          <button on:click={() => (showCreateModal = false)} class="text-garuda-muted hover:text-white">&times;</button>
+        </div>
 
-        <form on:submit={createUser} class="space-y-4">
+        <form on:submit={createUser} class="space-y-3">
           <div>
-            <label for="u-name" class="block text-slate-300 mb-1">Username</label>
+            <label for="u-name" class="block text-[11px] uppercase text-garuda-muted mb-1">Username</label>
             <input
               id="u-name"
               type="text"
               bind:value={username}
               required
               placeholder="player1"
-              class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
             />
           </div>
 
           <div>
-            <label for="u-email" class="block text-slate-300 mb-1">Email Address</label>
+            <label for="u-email" class="block text-[11px] uppercase text-garuda-muted mb-1">Email</label>
             <input
               id="u-email"
               type="email"
               bind:value={email}
               required
               placeholder="player1@garuda.io"
-              class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
             />
           </div>
 
           <div>
-            <label for="u-pwd" class="block text-slate-300 mb-1">Password</label>
+            <label for="u-pwd" class="block text-[11px] uppercase text-garuda-muted mb-1">Password</label>
             <input
               id="u-pwd"
               type="password"
               bind:value={password}
               required
               placeholder="••••••••••••"
-              class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-slate-100 focus:outline-none focus:border-garuda-primary"
+              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
             />
           </div>
 
           <div class="pt-1">
             <label class="flex items-center gap-2 cursor-pointer text-slate-300">
               <input type="checkbox" bind:checked={isAdmin} />
-              <span>Jadikan Administrator</span>
+              <span>Hak Akses Administrator</span>
             </label>
           </div>
 
-          <div class="pt-4 border-t border-garuda-border/60 flex items-center justify-end gap-2">
+          <div class="pt-3 border-t border-garuda-border flex items-center justify-end gap-2">
             <button
               type="button"
               on:click={() => (showCreateModal = false)}
-              class="px-4 py-2 bg-garuda-card hover:bg-garuda-hover rounded-lg text-slate-400"
+              class="px-3 py-1.5 border border-garuda-border text-garuda-muted hover:bg-garuda-hover"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={submitting}
-              class="px-5 py-2 bg-garuda-primary hover:bg-sky-400 text-white rounded-lg font-bold transition disabled:opacity-50"
+              class="px-4 py-1.5 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-100 uppercase tracking-wider font-semibold disabled:opacity-50"
             >
-              {submitting ? 'Menyimpan...' : 'Buat User'}
+              {submitting ? 'Menyimpan...' : 'Simpan'}
             </button>
           </div>
         </form>

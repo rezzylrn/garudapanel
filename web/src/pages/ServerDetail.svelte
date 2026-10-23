@@ -41,76 +41,95 @@
     navigate(`/servers/${serverId}/${tab}`);
   }
 
-  function getStatusColor(status) {
+  function getStatusBadge(status) {
     switch (status) {
       case 'running':
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+        return 'text-emerald-400 border-emerald-900/60 bg-emerald-950/20';
       case 'starting':
       case 'installing':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+        return 'text-amber-400 border-amber-900/60 bg-amber-950/20';
       case 'stopping':
-        return 'bg-rose-500/10 text-rose-400 border-rose-500/30';
+        return 'text-rose-400 border-rose-900/60 bg-rose-950/20';
       case 'suspended':
-        return 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+        return 'text-purple-400 border-purple-900/60 bg-purple-950/20';
       default:
-        return 'bg-slate-700/30 text-slate-400 border-slate-700';
+        return 'text-slate-400 border-garuda-border bg-garuda-card';
     }
   }
 </script>
 
-<div class="space-y-6">
-  <!-- Server Hero Header -->
+<div class="space-y-4">
   {#if loading}
-    <div class="py-16 text-center text-xs text-garuda-muted font-mono">Memuat server...</div>
+    <div class="py-16 text-center text-xs font-mono text-garuda-muted">
+      Memuat informasi instance...
+    </div>
   {:else if errorMsg}
-    <div class="p-5 bg-rose-950/40 border border-rose-800/60 rounded-xl text-rose-300 text-sm flex items-center justify-between">
+    <div class="p-3 bg-garuda-surface border-l-2 border-garuda-danger text-xs font-mono text-rose-400 flex items-center justify-between">
       <span>{errorMsg}</span>
-      <button on:click={() => navigate('/servers')} class="px-3 py-1 bg-rose-900/60 hover:bg-rose-900 rounded text-xs">
-        Daftar Server
+      <button on:click={() => navigate('/servers')} class="px-2 py-0.5 border border-garuda-border text-slate-300 hover:bg-garuda-hover">
+        Kembali ke Servers
       </button>
     </div>
   {:else if server}
-    <div class="bg-garuda-surface border border-garuda-border/80 rounded-xl p-5 shadow-xl">
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div class="flex items-center gap-3">
-            <h1 class="text-xl font-black text-slate-100 tracking-wide">{server.name}</h1>
-            <span class={`text-[10px] font-mono px-2.5 py-0.5 rounded border uppercase tracking-wider font-semibold ${getStatusColor(server.status)}`}>
-              {server.status}
-            </span>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-4 text-xs font-mono text-garuda-muted mt-2">
-            <span class="text-slate-300 flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-garuda-primary"></span>
-              <span>{server.ip ? `${server.ip}:${server.port}` : 'No Port'}</span>
-            </span>
-            <span>•</span>
-            <span>Node: <span class="text-slate-300 font-semibold">{server.node_name || 'n/a'}</span></span>
-            <span>•</span>
-            <span>Egg: <span class="text-slate-300">{server.egg_name || 'Standard'}</span></span>
-            <span>•</span>
-            <span class="text-[10px] text-slate-500 truncate max-w-[200px]" title={server.uuid}>UUID: {server.uuid}</span>
-          </div>
+    <!-- Server Metadata Strip -->
+    <div class="border border-garuda-border bg-garuda-surface">
+      <!-- Title & Actions Row -->
+      <div class="p-3 border-b border-garuda-border flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class={`px-2 py-0.5 border text-xs font-mono uppercase font-bold tracking-wider ${getStatusBadge(server.status)}`}>
+            {server.status}
+          </span>
+          <h1 class="text-sm font-mono font-bold text-slate-100">
+            {server.name}
+          </h1>
+          <span class="text-xs font-mono text-garuda-muted">
+            #{server.id}
+          </span>
         </div>
 
-        <!-- Back to list button -->
         <button
           on:click={() => navigate('/servers')}
-          class="px-3 py-1.5 bg-garuda-card hover:bg-garuda-hover border border-garuda-border rounded-lg text-xs font-mono text-slate-300 transition self-start md:self-auto"
+          class="self-start md:self-auto px-2.5 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-xs font-mono text-garuda-muted hover:text-slate-200"
         >
-          &larr; Semua Server
+          &larr; Daftar Server
         </button>
       </div>
 
-      <!-- Navigation Tabs -->
-      <div class="flex items-center gap-1 mt-6 pt-4 border-t border-garuda-border/60 overflow-x-auto text-xs font-mono">
+      <!-- Specs Bar -->
+      <div class="px-3 py-2 bg-garuda-card text-xs font-mono text-slate-300 flex flex-wrap items-center gap-x-6 gap-y-1">
+        <div>
+          <span class="text-garuda-muted">Endpoint:</span>
+          <span class="text-slate-100 ml-1">{server.ip ? `${server.ip}:${server.port}` : 'Belum teralokasi'}</span>
+        </div>
+        <div>
+          <span class="text-garuda-muted">Node:</span>
+          <span class="text-slate-100 ml-1">{server.node_name || '-'}</span>
+        </div>
+        <div>
+          <span class="text-garuda-muted">Egg:</span>
+          <span class="text-slate-100 ml-1">{server.egg_name || 'Standard'}</span>
+        </div>
+        <div>
+          <span class="text-garuda-muted">RAM/Disk:</span>
+          <span class="text-slate-100 ml-1">{server.memory_mb} MB / {server.disk_mb} MB</span>
+        </div>
+        <div>
+          <span class="text-garuda-muted">CPU:</span>
+          <span class="text-slate-100 ml-1">{server.cpu_percent}%</span>
+        </div>
+        <div class="text-garuda-muted truncate max-w-xs" title={server.uuid}>
+          UUID: {server.uuid}
+        </div>
+      </div>
+
+      <!-- Navigation Tabs Strip -->
+      <div class="flex items-center border-t border-garuda-border overflow-x-auto text-xs font-mono bg-garuda-surface">
         <button
           on:click={() => setTab('console')}
-          class={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
+          class={`px-3 py-2 border-r border-garuda-border transition whitespace-nowrap ${
             activeTab === 'console'
-              ? 'bg-garuda-primary text-white shadow-md shadow-sky-500/20'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-garuda-card'
+              ? 'bg-garuda-card text-slate-100 font-bold border-b-2 border-b-garuda-accent'
+              : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
           }`}
         >
           Console
@@ -118,32 +137,32 @@
 
         <button
           on:click={() => setTab('files')}
-          class={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
+          class={`px-3 py-2 border-r border-garuda-border transition whitespace-nowrap ${
             activeTab === 'files'
-              ? 'bg-garuda-primary text-white shadow-md shadow-sky-500/20'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-garuda-card'
+              ? 'bg-garuda-card text-slate-100 font-bold border-b-2 border-b-garuda-accent'
+              : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
           }`}
         >
-          File Manager
+          Files
         </button>
 
         <button
           on:click={() => setTab('startup')}
-          class={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
+          class={`px-3 py-2 border-r border-garuda-border transition whitespace-nowrap ${
             activeTab === 'startup'
-              ? 'bg-garuda-primary text-white shadow-md shadow-sky-500/20'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-garuda-card'
+              ? 'bg-garuda-card text-slate-100 font-bold border-b-2 border-b-garuda-accent'
+              : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
           }`}
         >
-          Startup & Variables
+          Startup
         </button>
 
         <button
           on:click={() => setTab('network')}
-          class={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
+          class={`px-3 py-2 border-r border-garuda-border transition whitespace-nowrap ${
             activeTab === 'network'
-              ? 'bg-garuda-primary text-white shadow-md shadow-sky-500/20'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-garuda-card'
+              ? 'bg-garuda-card text-slate-100 font-bold border-b-2 border-b-garuda-accent'
+              : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
           }`}
         >
           Network
@@ -151,10 +170,10 @@
 
         <button
           on:click={() => setTab('activity')}
-          class={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
+          class={`px-3 py-2 border-r border-garuda-border transition whitespace-nowrap ${
             activeTab === 'activity'
-              ? 'bg-garuda-primary text-white shadow-md shadow-sky-500/20'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-garuda-card'
+              ? 'bg-garuda-card text-slate-100 font-bold border-b-2 border-b-garuda-accent'
+              : 'text-garuda-muted hover:text-slate-200 hover:bg-garuda-hover'
           }`}
         >
           Activity
@@ -162,7 +181,7 @@
       </div>
     </div>
 
-    <!-- Tab Contents -->
+    <!-- Tab View Container -->
     <div>
       {#if activeTab === 'console'}
         <ConsoleTab {server} />

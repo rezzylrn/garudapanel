@@ -35,66 +35,64 @@
   });
 </script>
 
-<div class="space-y-4">
-  <div class="bg-garuda-surface border border-garuda-border/80 rounded-xl p-5 shadow-lg flex items-center justify-between">
+<div class="space-y-3 font-mono text-xs">
+  <div class="border border-garuda-border bg-garuda-surface p-3 flex flex-col md:flex-row md:items-center justify-between gap-2">
     <div>
-      <h3 class="font-bold text-slate-100 text-sm mb-1">Riwayat Aktivitas & Audit Log</h3>
-      <p class="text-xs text-garuda-muted">
-        Catatan tindakan yang dilakukan pada server ini (power action, modifikasi file, perubahan konfigurasi).
+      <h3 class="font-bold text-slate-100 uppercase tracking-wider text-xs">Audit & Activity Log</h3>
+      <p class="text-garuda-muted text-[11px] mt-0.5">
+        Catatan tindakan operasional pada server (status power, konfigurasi, file).
       </p>
     </div>
     <button
       on:click={loadActivity}
-      class="px-3 py-1.5 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-300 rounded-lg text-xs font-mono transition"
+      class="self-start md:self-auto px-2.5 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-garuda-muted hover:text-slate-200"
     >
       Refresh
     </button>
   </div>
 
   {#if errorMsg}
-    <div class="p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl text-xs text-rose-300 font-mono">
+    <div class="p-2 border-l-2 border-garuda-danger bg-garuda-surface text-rose-400">
       {errorMsg}
     </div>
   {/if}
 
   {#if loading}
-    <div class="py-20 text-center text-xs text-garuda-muted font-mono">Memuat log aktivitas...</div>
+    <div class="py-16 text-center text-garuda-muted">Memuat catatan aktivitas...</div>
   {:else if logs.length === 0}
-    <div class="py-16 text-center text-xs text-garuda-muted font-mono bg-garuda-surface border border-garuda-border/60 rounded-xl">
+    <div class="py-12 text-center text-garuda-muted border border-garuda-border bg-garuda-surface">
       Belum ada aktivitas tercatat untuk server ini.
     </div>
   {:else}
-    <div class="bg-garuda-surface border border-garuda-border/80 rounded-xl overflow-hidden shadow-lg">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr class="border-b border-garuda-border/60 bg-garuda-card/40 text-garuda-muted font-mono uppercase text-[10px]">
-              <th class="py-3 px-4 w-44">Waktu</th>
-              <th class="py-3 px-4 w-44">Aksi</th>
-              <th class="py-3 px-4">Detail</th>
-              <th class="py-3 px-4 w-28 text-right">Actor ID</th>
+    <div class="border border-garuda-border bg-garuda-surface overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="border-b border-garuda-border bg-garuda-card text-garuda-muted text-[11px] uppercase">
+            <th class="py-2 px-3 w-44">Waktu</th>
+            <th class="py-2 px-3 w-40">Aksi</th>
+            <th class="py-2 px-3">Detail</th>
+            <th class="py-2 px-3 w-28 text-right">Actor</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-garuda-border">
+          {#each logs as log}
+            <tr class="hover:bg-garuda-hover">
+              <td class="py-2 px-3 text-garuda-muted text-[11px] whitespace-nowrap">
+                {formatTime(log.created_at)}
+              </td>
+              <td class="py-2 px-3 font-semibold text-slate-200 whitespace-nowrap uppercase">
+                {log.action}
+              </td>
+              <td class="py-2 px-3 text-slate-300 break-all">
+                {log.detail || '-'}
+              </td>
+              <td class="py-2 px-3 text-right text-garuda-muted">
+                #{log.actor_id}
+              </td>
             </tr>
-          </thead>
-          <tbody class="divide-y divide-garuda-border/40 font-mono">
-            {#each logs as log}
-              <tr class="hover:bg-garuda-card/40 transition">
-                <td class="py-3 px-4 text-garuda-muted text-[11px] whitespace-nowrap">
-                  {formatTime(log.created_at)}
-                </td>
-                <td class="py-3 px-4 font-semibold text-sky-400 whitespace-nowrap">
-                  {log.action}
-                </td>
-                <td class="py-3 px-4 text-slate-300 break-all">
-                  {log.detail || '-'}
-                </td>
-                <td class="py-3 px-4 text-right text-garuda-muted">
-                  #{log.actor_id}
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+          {/each}
+        </tbody>
+      </table>
     </div>
   {/if}
 </div>

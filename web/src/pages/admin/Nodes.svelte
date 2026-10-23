@@ -171,55 +171,52 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4 font-mono text-xs">
   <!-- Header -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-garuda-border/50">
-    <div>
-      <h1 class="text-xl font-bold text-slate-100 flex items-center gap-2">
-        <span>Nodes Management</span>
-        <span class="text-xs px-2 py-0.5 rounded-full bg-garuda-card border border-garuda-border font-mono text-garuda-muted">
-          {nodes.length}
-        </span>
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-garuda-border">
+    <div class="flex items-baseline gap-3">
+      <h1 class="text-sm font-bold uppercase tracking-wider text-slate-100">
+        Nodes
       </h1>
-      <p class="text-xs text-garuda-muted mt-0.5">Kelola daemon worker nodes yang menjalankan container server game.</p>
+      <span class="text-garuda-muted text-xs">Total: {nodes.length}</span>
     </div>
 
     <button
       on:click={() => (showCreateModal = true)}
-      class="px-4 py-2 bg-garuda-primary hover:bg-sky-400 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition shadow-lg shadow-sky-600/20"
+      class="self-start sm:self-auto px-3 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200 uppercase tracking-wider"
     >
-      + Tambah Node Baru
+      + Tambah Node
     </button>
   </div>
 
   {#if createdNodeResult}
     <!-- Join Token Notice Dialog -->
-    <div class="bg-gradient-to-r from-sky-950/70 via-garuda-surface to-sky-950/70 border-2 border-sky-500/80 rounded-xl p-6 shadow-2xl relative">
+    <div class="border border-garuda-border bg-garuda-surface p-4">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <span class="text-[10px] font-mono uppercase tracking-widest text-garuda-primary font-bold px-2 py-0.5 rounded bg-sky-950 border border-sky-800">
-            Node Created Successfully
-          </span>
-          <h2 class="text-base font-bold text-slate-100 mt-2">
-            Join Token untuk Node: <span class="text-sky-400">#{createdNodeResult.id}</span>
-          </h2>
-          <p class="text-xs text-garuda-muted mt-1 max-w-xl">
-            Token ini hanya ditampilkan <span class="text-amber-400 font-semibold">sekali saja</span> dan berlaku selama 15 menit. Jalankan perintah daemon berikut pada VPS/server target:
+          <div class="text-[11px] uppercase tracking-wider text-garuda-muted font-bold">
+            Node Ditambahkan
+          </div>
+          <div class="text-xs font-bold text-slate-100 mt-1">
+            Join Token Node #{createdNodeResult.id} (Berlaku 15 menit)
+          </div>
+          <p class="text-[11px] text-garuda-muted mt-1">
+            Jalankan perintah ini sekali pada VPS worker target:
           </p>
 
-          <div class="mt-4 p-3 bg-black/80 rounded-lg border border-garuda-border font-mono text-xs text-emerald-400 flex items-center justify-between gap-3 overflow-x-auto">
+          <div class="mt-2.5 p-2 bg-garuda-bg border border-garuda-border text-[11px] text-slate-200 flex items-center justify-between gap-2 overflow-x-auto">
             <code>./garuda daemon --panel {window.location.origin} --join {createdNodeResult.join_token}</code>
             <button
               on:click={() => copyJoinCommand(createdNodeResult.join_token)}
-              class="px-3 py-1 bg-garuda-card hover:bg-garuda-hover text-slate-200 border border-garuda-border rounded text-[11px] whitespace-nowrap transition"
+              class="px-2 py-0.5 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200 text-[10px] uppercase whitespace-nowrap"
             >
-              {copied ? 'Tersalin!' : 'Copy'}
+              {copied ? 'Tersalin' : 'Copy'}
             </button>
           </div>
         </div>
         <button
           on:click={() => (createdNodeResult = null)}
-          class="text-slate-400 hover:text-white text-lg font-bold p-1"
+          class="text-garuda-muted hover:text-white text-sm"
         >
           &times;
         </button>
@@ -228,160 +225,156 @@
   {/if}
 
   {#if errorMsg}
-    <div class="p-4 rounded-lg bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs font-mono">{errorMsg}</div>
+    <div class="p-2 border-l-2 border-garuda-danger bg-garuda-surface text-rose-400">{errorMsg}</div>
   {/if}
 
   {#if loading}
-    <div class="py-20 text-center text-xs text-garuda-muted font-mono">Memuat daftar nodes...</div>
+    <div class="py-16 text-center text-garuda-muted">Memuat daftar nodes...</div>
   {:else if nodes.length === 0}
-    <div class="py-16 text-center text-xs text-garuda-muted font-mono bg-garuda-surface border border-garuda-border/60 rounded-xl">
-      Belum ada node yang terdaftar. Tambahkan node baru untuk mulai meng-host game server.
+    <div class="py-12 text-center text-garuda-muted border border-garuda-border bg-garuda-surface">
+      Belum ada node yang terdaftar.
     </div>
   {:else}
-    <div class="bg-garuda-surface border border-garuda-border/80 rounded-xl overflow-hidden shadow-xl">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr class="border-b border-garuda-border/60 bg-garuda-card/40 text-garuda-muted font-mono uppercase text-[10px]">
-              <th class="py-3 px-4 w-16">ID</th>
-              <th class="py-3 px-4">Nama Node</th>
-              <th class="py-3 px-4">FQDN / Host</th>
-              <th class="py-3 px-4">Location</th>
-              <th class="py-3 px-4">Limits (RAM / Disk)</th>
-              <th class="py-3 px-4 text-right">Aksi</th>
+    <div class="border border-garuda-border bg-garuda-surface overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="border-b border-garuda-border bg-garuda-card text-garuda-muted text-[11px] uppercase">
+            <th class="py-2 px-3 w-16">ID</th>
+            <th class="py-2 px-3">Nama Node</th>
+            <th class="py-2 px-3">Host / FQDN</th>
+            <th class="py-2 px-3">Location</th>
+            <th class="py-2 px-3">Limits (RAM / Disk)</th>
+            <th class="py-2 px-3 text-right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-garuda-border">
+          {#each nodes as n}
+            <tr class="hover:bg-garuda-hover">
+              <td class="py-2 px-3 text-garuda-muted">#{n.id}</td>
+              <td class="py-2 px-3 font-semibold text-slate-100">{n.name}</td>
+              <td class="py-2 px-3 text-slate-300">{n.fqdn || '127.0.0.1'}</td>
+              <td class="py-2 px-3 text-slate-300">
+                {locations.find((l) => l.id === n.location_id)?.short_code || `Loc #${n.location_id}`}
+              </td>
+              <td class="py-2 px-3 text-garuda-muted">
+                {n.memory_limit_mb || 0} MB / {n.disk_limit_mb || 0} MB
+              </td>
+              <td class="py-2 px-3 text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    on:click={() => openAllocations(n)}
+                    class="px-2 py-0.5 border border-garuda-border bg-garuda-card hover:bg-garuda-hover text-slate-200 text-[11px]"
+                  >
+                    Allocations
+                  </button>
+                  <button
+                    on:click={() => revokeToken(n)}
+                    class="px-2 py-0.5 border border-garuda-border bg-garuda-card hover:bg-garuda-hover text-amber-400 text-[11px]"
+                    title="Putuskan sambungan token daemon"
+                  >
+                    Revoke
+                  </button>
+                  <button
+                    on:click={() => deleteNode(n)}
+                    class="px-2 py-0.5 border border-garuda-border bg-garuda-card hover:bg-garuda-hover text-rose-400 text-[11px]"
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </td>
             </tr>
-          </thead>
-          <tbody class="divide-y divide-garuda-border/40 font-mono">
-            {#each nodes as n}
-              <tr class="hover:bg-garuda-card/40 transition">
-                <td class="py-3 px-4 text-garuda-muted">#{n.id}</td>
-                <td class="py-3 px-4 font-bold text-slate-200">
-                  {n.name}
-                </td>
-                <td class="py-3 px-4 text-sky-400">{n.fqdn || '127.0.0.1'}</td>
-                <td class="py-3 px-4 text-slate-300">
-                  {locations.find((l) => l.id === n.location_id)?.short_code || `Loc #${n.location_id}`}
-                </td>
-                <td class="py-3 px-4 text-garuda-muted">
-                  {n.memory_limit_mb || 0} MB / {n.disk_limit_mb || 0} MB
-                </td>
-                <td class="py-3 px-4 text-right">
-                  <div class="flex items-center justify-end gap-2">
-                    <button
-                      on:click={() => openAllocations(n)}
-                      class="px-2.5 py-1 bg-sky-950/40 hover:bg-sky-900/50 text-sky-300 border border-sky-800/50 rounded text-[11px]"
-                    >
-                      Allocations
-                    </button>
-                    <button
-                      on:click={() => revokeToken(n)}
-                      class="px-2.5 py-1 bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border border-amber-800/50 rounded text-[11px]"
-                      title="Putuskan sambungan token daemon"
-                    >
-                      Revoke
-                    </button>
-                    <button
-                      on:click={() => deleteNode(n)}
-                      class="px-2.5 py-1 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/50 rounded text-[11px]"
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+          {/each}
+        </tbody>
+      </table>
     </div>
   {/if}
 
   <!-- Modal Tambah Node Baru -->
   {#if showCreateModal}
-    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-garuda-surface border border-garuda-border rounded-xl max-w-lg w-full p-6 shadow-2xl relative">
-        <h3 class="text-base font-bold text-slate-100 mb-1">Tambah Node Worker Baru</h3>
-        <p class="text-xs text-garuda-muted mb-5">
-          Setelah node dibuat, sistem akan menghasilkan satu kali pakai token registrasi untuk daemon.
-        </p>
+    <div class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div class="bg-garuda-surface border border-garuda-border max-w-lg w-full p-5">
+        <div class="flex items-center justify-between pb-2 mb-3 border-b border-garuda-border">
+          <h3 class="font-bold text-slate-100 uppercase tracking-wider">Tambah Worker Node</h3>
+          <button on:click={() => (showCreateModal = false)} class="text-garuda-muted hover:text-white">&times;</button>
+        </div>
 
-        <form on:submit={createNode} class="space-y-4">
+        <form on:submit={createNode} class="space-y-3">
           <div>
-            <label for="node-name" class="block text-xs font-mono text-slate-300 mb-1">Nama Node</label>
+            <label for="node-name" class="block text-[11px] uppercase text-garuda-muted mb-1">Nama Node</label>
             <input
               id="node-name"
               type="text"
               bind:value={name}
               required
-              placeholder="contoh: node-sg-01"
-              class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-xs font-mono text-slate-100 focus:outline-none focus:border-garuda-primary"
+              placeholder="node-01"
+              class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
             />
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="node-loc" class="block text-xs font-mono text-slate-300 mb-1">Location</label>
+              <label for="node-loc" class="block text-[11px] uppercase text-garuda-muted mb-1">Location</label>
               <select
                 id="node-loc"
                 bind:value={locationId}
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-xs font-mono text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
               >
                 {#each locations as loc}
-                  <option value={loc.id}>{loc.short_code} ({loc.description || 'No desc'})</option>
+                  <option value={loc.id}>{loc.short_code} ({loc.description || '-'})</option>
                 {/each}
               </select>
             </div>
 
             <div>
-              <label for="node-fqdn" class="block text-xs font-mono text-slate-300 mb-1">FQDN / Host</label>
+              <label for="node-fqdn" class="block text-[11px] uppercase text-garuda-muted mb-1">FQDN / Host</label>
               <input
                 id="node-fqdn"
                 type="text"
                 bind:value={fqdn}
                 placeholder="node1.garuda.io"
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-xs font-mono text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border focus:outline-none focus:border-garuda-accent"
               />
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="node-ram" class="block text-xs font-mono text-slate-300 mb-1">RAM Limit (MB)</label>
+              <label for="node-ram" class="block text-[11px] uppercase text-garuda-muted mb-1">RAM Limit (MB)</label>
               <input
                 id="node-ram"
                 type="number"
                 bind:value={memoryLimit}
                 required
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-xs font-mono text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
               />
             </div>
 
             <div>
-              <label for="node-disk" class="block text-xs font-mono text-slate-300 mb-1">Disk Limit (MB)</label>
+              <label for="node-disk" class="block text-[11px] uppercase text-garuda-muted mb-1">Disk Limit (MB)</label>
               <input
                 id="node-disk"
                 type="number"
                 bind:value={diskLimit}
                 required
-                class="w-full px-3 py-2 bg-garuda-bg border border-garuda-border rounded-lg text-xs font-mono text-slate-100 focus:outline-none focus:border-garuda-primary"
+                class="w-full px-2.5 py-1.5 bg-garuda-bg border border-garuda-border text-slate-100 focus:outline-none focus:border-garuda-accent"
               />
             </div>
           </div>
 
-          <div class="pt-4 border-t border-garuda-border/60 flex items-center justify-end gap-2">
+          <div class="pt-3 border-t border-garuda-border flex items-center justify-end gap-2">
             <button
               type="button"
               on:click={() => (showCreateModal = false)}
-              class="px-4 py-2 bg-garuda-card hover:bg-garuda-hover rounded-lg text-xs font-medium text-slate-400"
+              class="px-3 py-1.5 border border-garuda-border text-garuda-muted hover:bg-garuda-hover"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={submitting}
-              class="px-5 py-2 bg-garuda-primary hover:bg-sky-400 text-white rounded-lg text-xs font-bold transition disabled:opacity-50"
+              class="px-4 py-1.5 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-100 uppercase tracking-wider font-semibold disabled:opacity-50"
             >
-              {submitting ? 'Menyimpan...' : 'Buat Node'}
+              {submitting ? 'Menyimpan...' : 'Simpan'}
             </button>
           </div>
         </form>
@@ -391,38 +384,36 @@
 
   <!-- Modal Allocations for Node -->
   {#if showAllocModal && targetNodeForAlloc}
-    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-garuda-surface border border-garuda-border rounded-xl max-w-xl w-full p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
-        <div class="flex items-center justify-between pb-3 border-b border-garuda-border/60">
+    <div class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div class="bg-garuda-surface border border-garuda-border max-w-xl w-full p-5 max-h-[90vh] flex flex-col">
+        <div class="flex items-center justify-between pb-2 border-b border-garuda-border">
           <div>
-            <h3 class="text-base font-bold text-slate-100">Allocations: {targetNodeForAlloc.name}</h3>
-            <p class="text-xs text-garuda-muted">Daftar port IP yang dapat digunakan oleh server di node ini.</p>
+            <h3 class="font-bold text-slate-100 uppercase tracking-wider">Allocations: {targetNodeForAlloc.name}</h3>
+            <p class="text-[11px] text-garuda-muted">Daftar endpoint IP & Port untuk node ini.</p>
           </div>
-          <button on:click={() => (showAllocModal = false)} class="text-slate-400 hover:text-white text-lg font-bold">
-            &times;
-          </button>
+          <button on:click={() => (showAllocModal = false)} class="text-garuda-muted hover:text-white">&times;</button>
         </div>
 
         <!-- Add Allocation Form -->
-        <form on:submit={addAllocation} class="py-4 border-b border-garuda-border/40 flex items-center gap-3">
+        <form on:submit={addAllocation} class="py-3 border-b border-garuda-border flex items-center gap-2">
           <input
             type="text"
             bind:value={allocIP}
             placeholder="IP Address (0.0.0.0)"
             required
-            class="flex-1 px-3 py-1.5 bg-garuda-bg border border-garuda-border rounded-lg text-xs font-mono text-slate-100"
+            class="flex-1 px-2.5 py-1 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border"
           />
           <input
             type="number"
             bind:value={allocPort}
-            placeholder="Port (25565)"
+            placeholder="Port"
             required
-            class="w-28 px-3 py-1.5 bg-garuda-bg border border-garuda-border rounded-lg text-xs font-mono text-slate-100"
+            class="w-24 px-2.5 py-1 bg-garuda-bg border border-garuda-border text-slate-100 placeholder-garuda-border"
           />
           <button
             type="submit"
             disabled={addingAlloc}
-            class="px-4 py-1.5 bg-garuda-primary hover:bg-sky-400 text-white rounded-lg text-xs font-bold transition disabled:opacity-50"
+            class="px-3 py-1 bg-garuda-card hover:bg-garuda-hover border border-garuda-border text-slate-200 uppercase tracking-wider whitespace-nowrap disabled:opacity-50"
           >
             + Tambah
           </button>
@@ -431,20 +422,20 @@
         <!-- Allocations List -->
         <div class="flex-1 overflow-y-auto py-2">
           {#if loadingAllocs}
-            <div class="py-8 text-center text-xs text-garuda-muted font-mono">Memuat...</div>
+            <div class="py-6 text-center text-garuda-muted">Memuat...</div>
           {:else if allocList.length === 0}
-            <div class="py-8 text-center text-xs text-garuda-muted font-mono">Belum ada port allocation.</div>
+            <div class="py-6 text-center text-garuda-muted">Belum ada alokasi port.</div>
           {:else}
-            <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div class="grid grid-cols-2 gap-1.5">
               {#each allocList as a}
-                <div class="p-2.5 rounded-lg bg-garuda-bg border border-garuda-border/60 flex items-center justify-between">
+                <div class="p-2 bg-garuda-bg border border-garuda-border flex items-center justify-between">
                   <span>{a.ip}:{a.port}</span>
                   {#if a.server_id}
-                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800">
+                    <span class="text-[9px] px-1 border border-garuda-border text-garuda-muted">
                       Server #{a.server_id}
                     </span>
                   {:else}
-                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
+                    <span class="text-[9px] px-1 border border-garuda-border text-emerald-400">
                       FREE
                     </span>
                   {/if}

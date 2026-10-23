@@ -56,19 +56,19 @@
   $: serverTab = serverMatch ? serverMatch[2] || 'console' : null;
 </script>
 
-<div class="min-h-screen bg-garuda-bg text-garuda-text flex flex-col">
+<div class="min-h-screen bg-garuda-bg text-garuda-text flex flex-col font-sans">
   {#if loadingUser}
     <div class="flex-1 flex items-center justify-center">
-      <div class="flex flex-col items-center gap-3">
-        <div class="w-10 h-10 border-2 border-garuda-primary border-t-transparent rounded-full animate-spin"></div>
-        <div class="text-xs uppercase tracking-widest text-garuda-muted font-mono">Loading GarudaPanel...</div>
+      <div class="flex items-center gap-2 text-xs font-mono text-garuda-muted">
+        <span class="inline-block w-2 h-2 bg-garuda-muted animate-pulse"></span>
+        <span>Memuat panel...</span>
       </div>
     </div>
   {:else if isLogin}
     <Login on:loginSuccess={loadMe} />
   {:else}
     <Navbar />
-    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-5">
       {#if route === '/' || route === '/servers'}
         <ServerList />
       {:else if serverMatch}
@@ -84,11 +84,15 @@
       {:else if route === '/admin/locations'}
         <AdminLocations />
       {:else}
-        <div class="text-center py-20">
-          <div class="text-4xl font-mono text-garuda-primary mb-2">404</div>
-          <div class="text-garuda-muted mb-6">Halaman tidak ditemukan: {route}</div>
-          <button on:click={() => navigate('/')} class="px-4 py-2 bg-garuda-card border border-garuda-border hover:border-garuda-primary rounded text-sm font-medium transition">
-            Kembali ke Dashboard
+        <div class="border border-garuda-border bg-garuda-surface p-6 text-center max-w-md mx-auto my-12">
+          <div class="text-xs font-mono uppercase text-garuda-muted mb-1">Error 404</div>
+          <div class="text-sm font-semibold text-slate-100 mb-2">Halaman tidak ditemukan</div>
+          <div class="text-xs font-mono text-garuda-muted mb-4">{route}</div>
+          <button
+            on:click={() => navigate('/')}
+            class="px-3 py-1.5 bg-garuda-card border border-garuda-border text-xs font-mono text-slate-200 hover:bg-garuda-hover"
+          >
+            Kembali ke Server
           </button>
         </div>
       {/if}
