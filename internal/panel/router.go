@@ -1,9 +1,8 @@
 package panel
 
 import (
+	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -11,6 +10,7 @@ import (
 
 	"garudapanel/internal/auth"
 	"garudapanel/internal/daemonhub"
+	"garudapanel/web"
 )
 
 // Routes memasang semua rute panel (REST + WS daemon + static embed).
@@ -131,20 +131,36 @@ func wrapH(h http.Handler) http.HandlerFunc {
 	return h.ServeHTTP
 }
 
-// staticHandler serve web/dist (placeholder dulu; nanti go:embed).
+// staticHandler serve web/dist via go:embed dengan fallback index.html untuk client-side routing.
 func staticHandler() http.HandlerFunc {
-	fs := http.FileServer(http.Dir("web/dist"))
+	subFS, err := web.DistFS()
+	if err != nil {
+		panic("dist fs embed: " + err.Error())
+	}
+	fileServer := http.FileServer(http.FS(subFS))
+
+	indexBytes, err := fs.ReadFile(subFS, "index.html")
+	if err != nil {
+		panic("read embedded index.html: " + err.Error())
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/")
 		if path == "" {
 			path = "index.html"
 		}
-		full := filepath.Join("web/dist", filepath.Clean("/"+path))
-		if _, err := os.Stat(full); err != nil {
-			// SPA fallback
-			http.ServeFile(w, r, filepath.Join("web/dist", "index.html"))
+
+		// Cek apakah file ada di subFS
+		f, err := subFS.Open(path)
+		if err == nil {
+			f.Close()
+			fileServer.ServeHTTP(w, r)
 			return
 		}
-		fs.ServeHTTP(w, r)
+
+		// Fallback SPA index.html
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(indexBytes)
 	}
 }

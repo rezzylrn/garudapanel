@@ -57,8 +57,9 @@ func clientIP(r *http.Request) string {
 // ---- auth handlers ----
 
 type loginReq struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username   string `json:"username"`
+	Identifier string `json:"identifier"`
+	Password   string `json:"password"`
 }
 
 // Login: POST /api/auth/login — rate limit 5/menit/IP (SPEC §8).
@@ -67,6 +68,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(r, &req); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid body")
 		return
+	}
+	ident := req.Username
+	if ident == "" {
+		ident = req.Identifier
 	}
 	ip := clientIP(r)
 	if !loginLimiter.Allow(ip) {
@@ -78,8 +83,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		hash    string
 		isAdmin bool
 	)
-	err := s.DB.QueryRow(`SELECT id, password_hash, is_admin FROM users WHERE username = ?`,
-		req.Username).Scan(&id, &hash, &isAdmin)
+	err := s.DB.QueryRow(`SELECT id, password_hash, is_admin FROM users WHERE username = ? OR email = ?`,
+		ident, ident).Scan(&id, &hash, &isAdmin)
 	if err == sql.ErrNoRows || (err == nil && !auth.VerifyPassword(req.Password, hash)) {
 		// hashing tetap dijalankan untuk anti timing oracle saat user tidak ada
 		if err == sql.ErrNoRows {
