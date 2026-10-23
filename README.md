@@ -19,7 +19,9 @@ On Ubuntu or Debian, run:
 curl -fsSL https://github.com/rezzylrn/garudapanel/releases/latest/download/install.sh -o /tmp/gp-install.sh && sudo bash /tmp/gp-install.sh
 ```
 
-The interactive script detects dependencies, downloads the static binary, configures systemd services, and outputs the initial admin password.
+The interactive script detects dependencies, downloads the static binary,
+configures systemd services, and walks you through creating the administrator
+account (username, email, password).
 
 Example session (Panel only):
 ```text
@@ -40,7 +42,15 @@ Enter choice [1-4]: 1
 [INFO] Configuring GarudaPanel (Web UI + API Server)...
 Listen address [default: :8080]: 
 Data directory [default: /var/lib/garudapanel]: 
-[INFO] Initializing database and generating bootstrap admin credentials...
+
+[INFO] Administrator account setup
+  Create the administrator account for the GarudaPanel web interface.
+
+  Username [default: admin]: 
+  Email address: admin@example.com
+  Password (min 8 characters): 
+  Confirm password: 
+[OK] Administrator account 'admin' created successfully.
 [INFO] Writing /etc/systemd/system/garuda-panel.service...
 [OK] garuda-panel.service enabled and started.
 
@@ -49,13 +59,10 @@ Data directory [default: /var/lib/garudapanel]:
 ==================================================
 
 Panel Service:
-  Status:  active (garuda-panel.service)
-  Listen:  :8080
-
-Admin Credentials:
-  BOOTSTRAP ADMIN dibuat -> username: admin  password: gp-EXAMPLE_PASSWORD
-  (Save this password now; it will not be displayed again)
-  Logs:    journalctl -u garuda-panel -f
+  Status:   active (garuda-panel.service)
+  Listen:   :8080
+  Admin:    admin (use the password you set during installation)
+  Logs:     journalctl -u garuda-panel -f
 
 Uninstall command:
   curl -fsSL https://github.com/rezzylrn/garudapanel/releases/latest/download/install.sh -o /tmp/gp-install.sh && sudo bash /tmp/gp-install.sh --uninstall
