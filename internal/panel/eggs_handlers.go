@@ -351,20 +351,19 @@ var _ = chi.URLParam // keep chi import for pathID pattern
 // ---- Pterodactyl egg.json import ----
 
 // pteroEgg mirrors the PTDL_v2 egg export format from Pterodactyl.
-// config.files / config.logs may be either JSON strings or objects.
+// config.files / config.logs / config.startup accept either JSON strings,
+// plain strings or objects — community eggs are inconsistent.
 type pteroEgg struct {
-	Name        string            `json:"name"`
-	Author      string            `json:"author"`
-	Description string            `json:"description"`
+	Name         string            `json:"name"`
+	Author       string            `json:"author"`
+	Description  string            `json:"description"`
 	DockerImages map[string]string `json:"docker_images"`
-	Startup     string            `json:"startup"`
-	Config      struct {
+	Startup      string            `json:"startup"`
+	Config       struct {
 		Files   any `json:"files"`
-		Startup struct {
-			Done string `json:"done"`
-		} `json:"startup"`
-		Logs any    `json:"logs"`
-		Stop string `json:"stop"`
+		Startup any `json:"startup"`
+		Logs    any `json:"logs"`
+		Stop    string `json:"stop"`
 	} `json:"config"`
 	Scripts struct {
 		Installation struct {
@@ -381,6 +380,30 @@ type pteroEgg struct {
 		UserViewable bool   `json:"user_viewable"`
 		UserEditable bool   `json:"user_editable"`
 	} `json:"variables"`
+}
+
+// pteroStartupDone extracts the "done" text from config.startup, which may be
+// {"done": "..."}, a plain string, or a JSON-encoded string.
+func pteroStartupDone(v any) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		// Might be a JSON-encoded {"done": "..."} — try to decode.
+		var obj struct {
+			Done string `json:"done"`
+		}
+		if err := json.Unmarshal([]byte(s), &obj); err == nil && obj.Done != "" {
+			return obj.Done
+		}
+		return s
+	}
+	if m, ok := v.(map[string]any); ok {
+		if done, ok := m["done"].(string); ok {
+			return done
+		}
+	}
+	return ""
 }
 
 type eggImportReq struct {
@@ -466,7 +489,7 @@ func (s *Server) handleEggsImport(w http.ResponseWriter, r *http.Request) {
 		 install_script, install_container, install_entrypoint)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		req.NestID, pe.Name, pe.Author, pe.Description, legacyImage, string(imagesJSON), pe.Startup,
-		legacyStop, pe.Config.Startup.Done, stop,
+		legacyStop, pteroStartupDone(pe.Config.Startup), stop,
 		asJSONString(pe.Config.Files), asJSONString(pe.Config.Logs),
 		pe.Scripts.Installation.Script, pe.Scripts.Installation.Container, entrypoint)
 	if err != nil {
