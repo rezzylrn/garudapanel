@@ -1,7 +1,10 @@
 // Package activity: helper pencatatan activity_logs (SPEC §5.9).
 package activity
 
-import "database/sql"
+import (
+	"database/sql"
+	"log"
+)
 
 // Log mencatat aksi ke activity_logs. Error di-log lalu diabaikan —
 // kegagalan logging tidak boleh menggagalkan aksi utama.
@@ -21,7 +24,7 @@ func Log(db *sql.DB, actorID, serverID int64, action, detail string) {
 		actor, srv, action, detail)
 	if err != nil {
 		// log saja; jangan panic
-		println("activity log error:", err.Error())
+		log.Printf("activity log error: %v", err)
 	}
 }
 

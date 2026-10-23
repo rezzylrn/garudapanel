@@ -95,11 +95,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		log.Printf("login: db query user error for identifier=%q: %v", ident, err)
 		writeErr(w, http.StatusInternalServerError, "db error")
 		return
 	}
 	token, err := s.Sessions.Create(id, ip, r.UserAgent())
 	if err != nil {
+		log.Printf("login: session create failed for user_id=%d: %v", id, err)
 		writeErr(w, http.StatusInternalServerError, "session create failed")
 		return
 	}
@@ -119,6 +121,7 @@ var dummyHash = "$argon2id$v=19$m=65536,t=3,p=2$MDAwMDAwMDAwMDAwMDAwMA$AAAAAAAAA
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	raw := auth.TokenFrom(r.Context())
 	if err := s.Sessions.Revoke(raw); err != nil {
+		log.Printf("logout: session revoke failed: %v", err)
 		writeErr(w, http.StatusInternalServerError, "revoke failed")
 		return
 	}

@@ -24,13 +24,14 @@ const usage = `GarudaPanel — panel manajemen game server.
 Usage:
   garuda panel  [--addr :8080] [--db garuda-panel.db]
   garuda daemon --panel http://host:8080 --join TOKEN
+  garuda admin create-user --username NAME --email EMAIL --password PASS [--db garuda-panel.db]
   garuda admin reset-password [--db garuda-panel.db]
   garuda admin provision-node --db garuda-panel.db --name NAME [--memory-mb N] [--disk-mb N]
 
 Commands:
-  panel   jalankan panel HTTP (API + UI)
-  daemon  jalankan daemon node (wajib --join untuk registrasi pertama)
-  admin   manajemen admin (subcommand: reset-password, provision-node)
+  panel   run the panel HTTP server (API + UI)
+  daemon  run the node daemon (--join required for first registration)
+  admin   administration (subcommands: create-user, reset-password, provision-node)
 `
 
 func main() {
@@ -121,10 +122,12 @@ func cmdDaemon(args []string) {
 
 func cmdAdmin(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintf(os.Stderr, "Usage: garuda admin <reset-password|provision-node> [options]\n")
+		fmt.Fprintf(os.Stderr, "Usage: garuda admin <create-user|reset-password|provision-node> [options]\n")
 		os.Exit(2)
 	}
 	switch args[0] {
+	case "create-user":
+		cmdAdminCreateUser(args[1:])
 	case "reset-password":
 		cmdAdminResetPassword(args[1:])
 	case "provision-node":
@@ -145,6 +148,55 @@ func generateRandomPassword(length int) (string, error) {
 		b[i] = charset[int(b[i])%len(charset)]
 	}
 	return string(b), nil
+}
+
+func cmdAdminCreateUser(args []string) {
+	fs := flag.NewFlagSet("admin create-user", flag.ExitOnError)
+	dbPath := fs.String("db", "garuda-panel.db", "sqlite database path")
+	username := fs.String("username", "", "login username (required)")
+	email := fs.String("email", "", "email address (required)")
+	password := fs.String("password", "", "password, min 8 characters (required)")
+	asAdmin := fs.Bool("admin", true, "grant administrator privileges")
+	_ = fs.Parse(args)
+
+	if *username == "" || *email == "" || *password == "" {
+		fatal("admin create-user: --username, --email and --password are required")
+	}
+	if len(*password) < 8 {
+		fatal("admin create-user: password must be at least 8 characters")
+	}
+
+	sqlDB, err := db.Open(*dbPath)
+	if err != nil {
+		fatal("db: %v", err)
+	}
+	defer sqlDB.Close()
+
+	var exists int
+	err = sqlDB.QueryRow(`SELECT COUNT(*) FROM users WHERE username = ? OR email = ?`, *username, *email).Scan(&exists)
+	if err != nil {
+		fatal("query user: %v", err)
+	}
+	if exists > 0 {
+		fatal("user with this username or email already exists")
+	}
+
+	hash, err := auth.HashPassword(*password)
+	if err != nil {
+		fatal("hash password: %v", err)
+	}
+
+	isAdmin := 0
+	if *asAdmin {
+		isAdmin = 1
+	}
+	_, err = sqlDB.Exec(`INSERT INTO users (username, email, password_hash, is_admin) VALUES (?,?,?,?)`,
+		*username, *email, hash, isAdmin)
+	if err != nil {
+		fatal("create user: %v", err)
+	}
+
+	fmt.Printf("USER CREATED -> username: %s email: %s admin: %v\n", *username, *email, *asAdmin)
 }
 
 func cmdAdminResetPassword(args []string) {
@@ -212,7 +264,7 @@ func cmdAdminProvisionNode(args []string) {
 	var locID int64
 	err = sqlDB.QueryRow(`SELECT id FROM locations ORDER BY id ASC LIMIT 1`).Scan(&locID)
 	if err == sql.ErrNoRows {
-		res, err := sqlDB.Exec(`INSERT INTO locations (short_code, description) VALUES ('local', 'Lokal (otomatis)')`)
+		res, err := sqlDB.Exec(`INSERT INTO locations (short_code, description) VALUES ('local', 'Local (auto)')`)
 		if err != nil {
 			fatal("insert default location: %v", err)
 		}

@@ -37,7 +37,7 @@ log_err() {
 # 1. Root check
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        log_err "Jalankan sebagai root:"
+        log_err "This installer must be run as root:"
         echo "  curl -fsSL https://github.com/${GITHUB_REPO}/releases/latest/download/install.sh -o /tmp/gp-install.sh && sudo bash /tmp/gp-install.sh"
         exit 1
     fi
@@ -236,7 +236,7 @@ install_docker() {
     if docker info >/dev/null 2>&1; then
         log_ok "Docker verified successfully (docker info ok)."
     else
-        log_warn "Docker install verification failed. Silakan install Docker manual: sudo apt install -y docker.io"
+        log_warn "Docker install verification failed. Please install Docker manually: sudo apt install -y docker.io"
     fi
 }
 
@@ -262,6 +262,66 @@ ensure_docker() {
 }
 
 # 6. Setup Panel
+setup_admin_user() {
+    local db_path="${1}"
+    echo ""
+    log_info "Administrator account setup"
+    echo "  Create the administrator account for the GarudaPanel web interface."
+    echo ""
+
+    local admin_user=""
+    local admin_email=""
+    local admin_pass=""
+    local admin_pass2=""
+
+    while [ -z "${admin_user}" ]; do
+        read -rp "  Username [default: admin]: " admin_user
+        admin_user="${admin_user:-admin}"
+    done
+
+    while true; do
+        read -rp "  Email address: " admin_email
+        if [[ "${admin_email}" == *"@"* ]]; then
+            break
+        fi
+        log_warn "Please enter a valid email address."
+    done
+
+    while true; do
+        read -s -rp "  Password (min 8 characters): " admin_pass
+        echo ""
+        if [ "${#admin_pass}" -lt 8 ]; then
+            log_warn "Password must be at least 8 characters."
+            continue
+        fi
+        read -s -rp "  Confirm password: " admin_pass2
+        echo ""
+        if [ "${admin_pass}" != "${admin_pass2}" ]; then
+            log_warn "Passwords do not match. Please try again."
+            continue
+        fi
+        break
+    done
+
+    log_info "Creating administrator account '${admin_user}'..."
+    local create_out
+    create_out=$("${GARUDA_BIN}" admin create-user --db "${db_path}" \
+        --username "${admin_user}" --email "${admin_email}" --password "${admin_pass}" 2>&1) || true
+
+    if echo "${create_out}" | grep -qi "already exists"; then
+        log_warn "A user with this username or email already exists. Skipping account creation."
+        log_info "Log in with your existing administrator account."
+    elif echo "${create_out}" | grep -q "USER CREATED"; then
+        log_ok "Administrator account '${admin_user}' created successfully."
+    else
+        log_warn "Account creation returned an unexpected result:"
+        echo "  ${create_out}"
+    fi
+
+    chown "${RUN_USER}:${RUN_USER}" "${db_path}" 2>/dev/null || true
+    PANEL_ADMIN_USER="${admin_user}"
+}
+
 setup_panel() {
     echo ""
     log_info "Configuring GarudaPanel (Web UI + API Server)..."
@@ -278,26 +338,8 @@ setup_panel() {
 
     local db_path="${panel_data_dir}/garuda-panel.db"
 
-    # Pre-bootstrap admin if database does not exist yet to capture credentials,
-    # or reset-password if database already exists (agar kredensial SELALU tampil di summary)
-    local bootstrap_output=""
-    if [ ! -f "${db_path}" ]; then
-        log_info "Initializing database and generating bootstrap admin credentials..."
-        local tmp_log
-        tmp_log=$(mktemp)
-        timeout 2s "${GARUDA_BIN}" panel --db "${db_path}" --addr 127.0.0.1:0 > "${tmp_log}" 2>&1 || true
-        bootstrap_output=$(grep "BOOTSTRAP ADMIN" "${tmp_log}" || true)
-        rm -f "${tmp_log}"
-        chown "${RUN_USER}:${RUN_USER}" "${db_path}" 2>/dev/null || true
-    else
-        log_info "Existing database found. Resetting admin password to ensure credentials are shown..."
-        local reset_log
-        reset_log=$(mktemp)
-        "${GARUDA_BIN}" admin reset-password --db "${db_path}" > "${reset_log}" 2>&1 || true
-        bootstrap_output=$(grep "ADMIN RESET" "${reset_log}" || true)
-        rm -f "${reset_log}"
-        chown "${RUN_USER}:${RUN_USER}" "${db_path}" 2>/dev/null || true
-    fi
+    # Administrator account is always set up interactively (pterodactyl-style).
+    setup_admin_user "${db_path}"
 
     log_info "Writing ${SYSTEMD_DIR}/garuda-panel.service..."
     cat <<EOF > "${SYSTEMD_DIR}/garuda-panel.service"
@@ -325,7 +367,6 @@ EOF
     log_ok "garuda-panel.service enabled and started."
 
     PANEL_SUMMARY_ADDR="${listen_addr}"
-    PANEL_BOOTSTRAP_OUTPUT="${bootstrap_output}"
     PANEL_DB_PATH="${db_path}"
 }
 
@@ -409,11 +450,11 @@ setup_daemon() {
     elif [ "${has_token}" -eq 0 ]; then
         echo ""
         log_warn "=========================================================="
-        log_warn "PERINGATAN: Join token dikosongkan & node-token belum ada!"
-        log_warn "garuda-daemon TIDAK akan jalan sampai node di-join manual."
-        log_warn "Jalankan perintah ini sekali untuk mendaftarkan node:"
+        log_warn "WARNING: No join token provided and no node-token exists."
+        log_warn "garuda-daemon will NOT run until the node is joined manually."
+        log_warn "Run this command once to register the node:"
         log_warn "  ${GARUDA_BIN} daemon --panel ${panel_url} --data ${daemon_data_dir} --join <TOKEN>"
-        log_warn "Lalu restart daemon:"
+        log_warn "Then restart the daemon:"
         log_warn "  systemctl restart garuda-daemon"
         log_warn "=========================================================="
         echo ""
@@ -448,7 +489,7 @@ EOF
         systemctl restart garuda-daemon || log_warn "garuda-daemon service started (waiting for Docker or network)."
         log_ok "garuda-daemon.service enabled and started."
     else
-        log_warn "garuda-daemon.service enabled, but not started yet (menunggu registrasi node token)."
+        log_warn "garuda-daemon.service enabled, but not started yet (waiting for node registration)."
     fi
 
     DAEMON_SUMMARY_PANEL="${panel_url}"
@@ -538,7 +579,7 @@ main() {
     download_binary
 
     PANEL_SUMMARY_ADDR=""
-    PANEL_BOOTSTRAP_OUTPUT=""
+    PANEL_ADMIN_USER=""
     DAEMON_SUMMARY_PANEL=""
 
     case "${mode}" in
@@ -562,17 +603,10 @@ main() {
 
     if [ "${mode}" = "panel" ] || [ "${mode}" = "both" ]; then
         echo "Panel Service:"
-        echo "  Status:  active (garuda-panel.service)"
-        echo "  Listen:  ${PANEL_SUMMARY_ADDR}"
-        if [ -n "${PANEL_BOOTSTRAP_OUTPUT}" ]; then
-            echo ""
-            echo "Admin Credentials:"
-            echo "  ${PANEL_BOOTSTRAP_OUTPUT}"
-            echo "  (Save this password now; it will not be displayed again)"
-        else
-            echo "  Admin credentials: see journalctl -u garuda-panel"
-        fi
-        echo "  Logs:    journalctl -u garuda-panel -f"
+        echo "  Status:   active (garuda-panel.service)"
+        echo "  Listen:   ${PANEL_SUMMARY_ADDR}"
+        echo "  Admin:    ${PANEL_ADMIN_USER} (use the password you set during installation)"
+        echo "  Logs:     journalctl -u garuda-panel -f"
         echo ""
     fi
 
