@@ -98,14 +98,24 @@ download_binary() {
     fi
 
     local arch=""
+    local asset_name="garuda"
     case "$(uname -m)" in
-        x86_64|amd64) arch="amd64" ;;
-        aarch64|arm64) arch="arm64" ;;
-        *) arch="amd64" ;;
+        x86_64|amd64)
+            arch="amd64"
+            asset_name="garuda"
+            ;;
+        aarch64|arm64)
+            arch="arm64"
+            asset_name="garuda-linux-arm64"
+            ;;
+        *)
+            arch="amd64"
+            asset_name="garuda"
+            ;;
     esac
 
-    local download_url="https://github.com/${GITHUB_REPO}/releases/latest/download/garuda"
-    log_info "Downloading GarudaPanel binary (${arch}) from ${download_url}..."
+    local download_url="https://github.com/${GITHUB_REPO}/releases/latest/download/${asset_name}"
+    log_info "Downloading GarudaPanel binary (${arch}: ${asset_name}) from ${download_url}..."
 
     local attempt=1
     local max_attempts=3
@@ -252,10 +262,40 @@ setup_daemon() {
 
     mkdir -p "${daemon_data_dir}/volumes"
 
-    local daemon_exec="${GARUDA_BIN} daemon --panel ${panel_url} --data ${daemon_data_dir}"
-    if [ -n "${input_join_token}" ]; then
-        daemon_exec="${daemon_exec} --join ${input_join_token}"
+    # One-shot join if token provided
+    local has_token=0
+    if [ -f "${daemon_data_dir}/node-token" ]; then
+        has_token=1
+        log_info "Existing node-token found at ${daemon_data_dir}/node-token."
     fi
+
+    if [ -n "${input_join_token}" ]; then
+        log_info "Performing one-shot node registration with join token..."
+        # Daemon one-shot join: run with timeout to register and persist node-token
+        timeout 5s "${GARUDA_BIN}" daemon --panel "${panel_url}" --data "${daemon_data_dir}" --join "${input_join_token}" >/dev/null 2>&1 || true
+
+        if [ -f "${daemon_data_dir}/node-token" ]; then
+            log_ok "Node registration successful. Saved node token to ${daemon_data_dir}/node-token."
+            has_token=1
+        else
+            log_warn "One-shot join did not create node-token (panel might be unreachable or token invalid)."
+            log_warn "You can retry join manually later: ${GARUDA_BIN} daemon --panel ${panel_url} --data ${daemon_data_dir} --join <TOKEN>"
+        fi
+    elif [ "${has_token}" -eq 0 ]; then
+        echo ""
+        log_warn "=========================================================="
+        log_warn "PERINGATAN: Join token dikosongkan & node-token belum ada!"
+        log_warn "garuda-daemon TIDAK akan jalan sampai node di-join manual."
+        log_warn "Jalankan perintah ini sekali untuk mendaftarkan node:"
+        log_warn "  ${GARUDA_BIN} daemon --panel ${panel_url} --data ${daemon_data_dir} --join <TOKEN>"
+        log_warn "Lalu restart daemon:"
+        log_warn "  systemctl restart garuda-daemon"
+        log_warn "=========================================================="
+        echo ""
+    fi
+
+    # Systemd unit MUST NOT contain --join token (join token is single-use)
+    local daemon_exec="${GARUDA_BIN} daemon --panel ${panel_url} --data ${daemon_data_dir}"
 
     log_info "Writing ${SYSTEMD_DIR}/garuda-daemon.service..."
     cat <<EOF > "${SYSTEMD_DIR}/garuda-daemon.service"
@@ -279,8 +319,12 @@ EOF
 
     systemctl daemon-reload
     systemctl enable garuda-daemon
-    systemctl restart garuda-daemon || log_warn "garuda-daemon service started (may wait for valid join token or Docker)."
-    log_ok "garuda-daemon.service enabled and started."
+    if [ "${has_token}" -eq 1 ]; then
+        systemctl restart garuda-daemon || log_warn "garuda-daemon service started (waiting for Docker or network)."
+        log_ok "garuda-daemon.service enabled and started."
+    else
+        log_warn "garuda-daemon.service enabled, but not started yet (menunggu registrasi node token)."
+    fi
 
     DAEMON_SUMMARY_PANEL="${panel_url}"
 }
