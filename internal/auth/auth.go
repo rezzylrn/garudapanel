@@ -245,6 +245,12 @@ func withSession(ctx context.Context, s SessionRow) context.Context {
 	return context.WithValue(ctx, ctxSession, s)
 }
 
+// WithSessionForTest: injeksi SessionRow langsung ke context — HANYA untuk
+// unit test handler yang mengemulasi middleware RequireAuth.
+func WithSessionForTest(ctx context.Context, s SessionRow) context.Context {
+	return withSession(ctx, s)
+}
+
 // SessionFrom mengambil session aktif dari request context (nil kalau tidak ada).
 func SessionFrom(ctx context.Context) *SessionRow {
 	s, _ := ctx.Value(ctxSession).(SessionRow)

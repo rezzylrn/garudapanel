@@ -48,16 +48,29 @@ type consoleSession struct {
 }
 
 // ConsoleDaemonFrame: router frame daemon → browser (dipasang via Hub.SetOnFrame).
-// console:<uuid> → semua sesi browser server uuid itu.
+// console:<uuid> atau stats:<uuid> (atau stats broadcast) → kirim ke browser.
 func ConsoleRouter(f daemonhub.Frame) {
-	if !strings.HasPrefix(f.Ch, "console:") {
+	var targetUUID string
+	if strings.HasPrefix(f.Ch, "console:") {
+		targetUUID = strings.TrimPrefix(f.Ch, "console:")
+	} else if strings.HasPrefix(f.Ch, "stats:") {
+		targetUUID = strings.TrimPrefix(f.Ch, "stats:")
+	} else if f.Ch == "stats" {
+		// fallback bila Ch adalah "stats", ambil server_uuid dari payload
+		var snap struct {
+			ServerUUID string `json:"server_uuid"`
+		}
+		if json.Unmarshal(f.Payload, &snap) == nil {
+			targetUUID = snap.ServerUUID
+		}
+	}
+	if targetUUID == "" {
 		return
 	}
-	uuid := strings.TrimPrefix(f.Ch, "console:")
 	consoleRouterInst.mu.Lock()
 	sessions := make([]*consoleSession, 0, 4)
 	for _, sess := range consoleRouterInst.bySess {
-		if sess.uuid == uuid {
+		if sess.uuid == targetUUID {
 			sessions = append(sessions, sess)
 		}
 	}
@@ -182,7 +195,7 @@ func (s *Server) runConsoleSession(ctx context.Context, conn *websocket.Conn, to
 		consoleRouterInst.mu.Unlock()
 	}()
 
-	// daemon buka sesi console + replay log terakhir
+	// daemon buka sesi console + replay log terakhir + subscribe stats
 	openP, _ := json.Marshal(map[string]string{"id": sessID})
 	if err := dConn.Send(daemonhub.Frame{Ch: "console:" + uuid, Type: "open", Payload: openP}); err != nil {
 		_ = sendBrowser(conn, "status", map[string]string{"s": "daemon send failed"})
@@ -190,6 +203,8 @@ func (s *Server) runConsoleSession(ctx context.Context, conn *websocket.Conn, to
 	}
 	replayP, _ := json.Marshal(map[string]string{"server_uuid": uuid})
 	_ = dConn.Send(daemonhub.Frame{Ch: "rpc", Type: "replay", Payload: replayP})
+	statsSubP, _ := json.Marshal(map[string]string{"server_uuid": uuid})
+	_ = dConn.Send(daemonhub.Frame{Ch: "stats", Type: "subscribe", Payload: statsSubP})
 
 	// goroutine baca browser: in/resize → daemon
 	go func() {

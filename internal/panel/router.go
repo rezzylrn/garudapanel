@@ -21,6 +21,16 @@ func Routes(s *Server) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(limitBody)
 
+	// router frame rpc file manager (rpc:res + file:read-chunk dari daemon)
+	daemonhub.SetRPCFrameHandler(func(f daemonhub.Frame) {
+		switch f.Type {
+		case "rpc:res":
+			resolveRPCWait(f.Payload)
+		case "file:read-chunk":
+			deliverReadChunk(f.Payload)
+		}
+	})
+
 	// daemon join + reverse WS (auth via join/node token, bukan session)
 	r.Post("/api/daemon/join", s.handleDaemonJoin)
 	r.Get("/api/daemon/ws", daemonhub.WSHandler(s.DB, s.Hub))
@@ -67,6 +77,9 @@ func Routes(s *Server) http.Handler {
 		ar.Get("/eggs/{id}", s.handleEggsGet)
 		ar.Patch("/eggs/{id}", s.handleEggsUpdate)
 		ar.Delete("/eggs/{id}", s.handleEggsDelete)
+		ar.Post("/eggs/{id}/variables", s.handleEggVariablesCreate)
+		ar.Patch("/eggs/{id}/variables/{vid}", s.handleEggVariableUpdate)
+		ar.Delete("/eggs/{id}/variables/{vid}", s.handleEggVariableDelete)
 
 		ar.Get("/servers", s.handleServersList)
 		ar.Post("/servers", s.handleServersCreate)
@@ -80,13 +93,27 @@ func Routes(s *Server) http.Handler {
 	return r
 }
 
-// installUserRoutes: rute user (owner/admin) — power, console WS, stats.
+// installUserRoutes: rute user (owner/admin) — power, console WS, stats, files.
 func installServerRoutes(s *Server, r chi.Router) {
 	r.Route("/api/servers/{id}", func(sr chi.Router) {
 		sr.Use(s.Sessions.RequireAuth)
 		sr.Post("/power", s.handleServerPower)
 		sr.Post("/console-token", s.handleConsoleToken)
 		sr.Get("/ws", s.handleServerWS) // auth via frame pertama (token 60s)
+
+		// file manager (milestone 3)
+		sr.Get("/files", s.handleFileList)
+		sr.Get("/files/usage", s.handleFileUsage)
+		sr.Get("/files/content", s.handleFileRead)
+		sr.Put("/files", s.handleFileWrite) // upload (body streaming)
+		sr.Post("/files/mkdir", s.handleFileMkdir)
+		sr.Post("/files/rename", s.handleFileRename)
+		sr.Post("/files/extract", s.handleFileExtract)
+		sr.Delete("/files", s.handleFileDelete)
+
+		// egg variables (milestone 3): lihat/ubah variable editable
+		sr.Get("/variables", s.handleServerVariablesGet)
+		sr.Patch("/variables/{name}", s.handleServerVariableSet)
 	})
 }
 
