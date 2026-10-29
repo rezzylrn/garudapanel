@@ -3,24 +3,28 @@
    icon-first navigation, fully responsive. No gradients, no glow. */
 
 :root {
-  /* Color — one accent, one gray family */
-  --bg: #0b0d12;
-  --bg-soft: #0f1219;
-  --surface: #141821;
-  --surface-hover: #1a1f2b;
-  --border: #232936;
-  --border-soft: #1b2130;
-  --text: #e6e9f0;
-  --text-dim: #9aa3b5;
-  --text-mute: #5c6579;
-  --accent: #4ade80;
-  --accent-dim: rgba(74, 222, 128, 0.12);
+  /* Color — blue accent, slate surfaces, semantic status colors */
+  --bg: #0a0e17;
+  --bg-soft: #0d1320;
+  --surface: #121a2b;
+  --surface-hover: #182238;
+  --border: #223050;
+  --border-soft: #1a2540;
+  --text: #e8edf7;
+  --text-dim: #94a2bd;
+  --text-mute: #5f6f8d;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-text: #6ea8fe;
+  --accent-dim: rgba(59, 130, 246, 0.14);
+  --ok: #34d399;
+  --ok-dim: rgba(52, 211, 153, 0.12);
   --danger: #f87171;
   --danger-dim: rgba(248, 113, 113, 0.12);
   --warn: #fbbf24;
   --warn-dim: rgba(251, 191, 36, 0.12);
-  --info: #60a5fa;
-  --info-dim: rgba(96, 165, 250, 0.12);
+  --info: #6ea8fe;
+  --info-dim: rgba(110, 168, 254, 0.12);
 
   /* Spacing scale (4px base) */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
@@ -146,7 +150,7 @@ button, input, select, textarea { font: inherit; }
 }
 .stat .label svg { opacity: 0.8; }
 .stat .value { font-family: var(--mono); font-size: 26px; font-weight: 700; line-height: 1.2; }
-.stat .value.green { color: var(--accent); }
+.stat .value.green { color: var(--ok); }
 .stat .sub { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
 
 /* ============ Cards & sections (no cards inside cards) ============ */
@@ -189,11 +193,11 @@ tbody tr:hover td { background: var(--surface-hover); }
   white-space: nowrap;
 }
 .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.badge.green { background: var(--accent-dim); color: var(--accent); }
+.badge.green { background: var(--ok-dim); color: var(--ok); }
 .badge.red { background: var(--danger-dim); color: var(--danger); }
 .badge.yellow { background: var(--warn-dim); color: var(--warn); }
-.badge.blue { background: var(--info-dim); color: var(--info); }
-.badge.gray { background: rgba(154, 163, 181, 0.12); color: var(--text-dim); }
+.badge.blue { background: var(--accent-dim); color: var(--accent-text); }
+.badge.gray { background: rgba(148, 162, 189, 0.12); color: var(--text-dim); }
 
 /* ============ Buttons ============ */
 .btn {
@@ -206,8 +210,8 @@ tbody tr:hover td { background: var(--surface-hover); }
 }
 .btn:hover { background: var(--surface-hover); border-color: var(--text-mute); }
 .btn:active { transform: scale(0.98); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0d12; }
-.btn.primary:hover { filter: brightness(1.08); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .btn.danger { border-color: var(--danger); color: var(--danger); }
 .btn.danger:hover { background: var(--danger-dim); }
 .btn.small { padding: 6px var(--s3); font-size: 12px; gap: 5px; }
@@ -252,7 +256,7 @@ tbody tr:hover td { background: var(--surface-hover); }
 }
 .alert svg { flex-shrink: 0; margin-top: 1px; }
 .alert.error { background: var(--danger-dim); border: 1px solid var(--danger); color: var(--danger); }
-.alert.ok { background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent); }
+.alert.ok { background: var(--ok-dim); border: 1px solid var(--ok); color: var(--ok); }
 .empty {
   text-align: center; padding: var(--s7) var(--s4); color: var(--text-mute);
   display: flex; flex-direction: column; align-items: center; gap: var(--s2);
@@ -286,7 +290,7 @@ tbody tr:hover td { background: var(--surface-hover); }
 #terminal { background: #000; border-radius: var(--r-lg); padding: var(--s3); height: 480px; overflow: hidden; }
 .console-bar { display: flex; gap: var(--s2); margin-bottom: var(--s3); align-items: center; flex-wrap: wrap; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-.status-dot.on { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.status-dot.on { background: var(--ok); box-shadow: 0 0 8px rgba(52, 211, 153, 0.6); }
 .status-dot.off { background: var(--text-mute); }
 
 /* ============ Status text (icon + short label) ============ */

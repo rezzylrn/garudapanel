@@ -3,6 +3,8 @@ package daemonhub
 import (
 	"database/sql"
 	"log"
+	"regexp"
+	"strings"
 )
 
 // serverVariableEnv: env KEY=value dari egg variables milik egg server ini.
@@ -50,3 +52,28 @@ func sanitizeEnvName(n string) string {
 	}
 	return string(out)
 }
+
+// substituteStartupVars: ganti placeholder {{NAME}} di startup command egg
+// dengan nilai variabel server (env KEY=value yang sama dikirim ke daemon).
+// Placeholder yang tidak dikenal dibiarkan apa adanya. ${VAR} TIDAK disentuh
+// — diekspansi shell dari env saat proses jalan.
+func substituteStartupVars(cmd string, env []string) string {
+	if cmd == "" {
+		return "echo 'garuda: egg has no startup command'"
+	}
+	vars := map[string]string{}
+	for _, kv := range env {
+		if i := strings.Index(kv, "="); i > 0 {
+			vars[kv[:i]] = kv[i+1:]
+		}
+	}
+	return varPlaceholderRe.ReplaceAllStringFunc(cmd, func(m string) string {
+		name := m[2 : len(m)-2]
+		if v, ok := vars[name]; ok {
+			return v
+		}
+		return m
+	})
+}
+
+var varPlaceholderRe = regexp.MustCompile(`\{\{[A-Za-z_][A-Za-z0-9_]*\}\}`)

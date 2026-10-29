@@ -24,10 +24,11 @@ var ErrQuotaExceeded = errors.New("disk quota exceeded")
 
 // Entry satu entri daftar file (bentuk wire JSON, dishare panel↔daemon).
 type Entry struct {
-	Name  string `json:"name"`
-	Size  int64  `json:"size"`
-	Mode  string `json:"mode"`     // "f" file, "d" dir, "s" symlink, lainnya "o"
-	ModeT string `json:"mode_raw"` // mode asli (permission bits)
+	Name    string `json:"name"`
+	Size    int64  `json:"size"`
+	Mode    string `json:"mode"`     // "f" file, "d" dir, "s" symlink, lainnya "o"
+	ModeT   string `json:"mode_raw"` // mode asli (permission bits)
+	ModTime int64  `json:"mod_time"` // unix seconds, 0 = tidak diketahui
 }
 
 // FS abstraksi filesystem volume server. Root = direktori volume server

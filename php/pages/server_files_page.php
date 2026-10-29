@@ -47,7 +47,9 @@ if (isset($_GET['partial'])) {
         exit;
     }
     $entries = $r['data']['entries'] ?? [];
-    usort($entries, fn($a, $b) => ($b['is_dir'] <=> $a['is_dir']) ?: strcmp($a['name'], $b['name']));
+    foreach ($entries as &$en) { $en['_is_dir'] = ($en['mode'] ?? '') === 'd'; }
+    unset($en);
+    usort($entries, fn($a, $b) => ($b['_is_dir'] <=> $a['_is_dir']) ?: strcmp($a['name'], $b['name']));
     if (empty($entries) && $path === '') {
         echo '<div class="empty">' . icon('folder', 32) . '<p>No files yet</p></div>';
         exit;
@@ -63,16 +65,16 @@ if (isset($_GET['partial'])) {
         <?php $full = $path === '' ? $en['name'] : $path . '/' . $en['name']; ?>
         <tr>
           <td>
-            <?php if ($en['is_dir']): ?>
+            <?php if ($en['_is_dir']): ?>
               <a href="#" hx-get="/?p=server/files&id=<?= $id ?>&partial=1&path=<?= urlencode($full) ?>" hx-target="#file-list" style="text-decoration:none"><?= icon('folder', 15) ?> <span class="cell-main"><?= e($en['name']) ?></span></a>
             <?php else: ?>
               <?= icon('file', 15) ?> <?= e($en['name']) ?>
             <?php endif; ?>
           </td>
-          <td class="mono"><?= $en['is_dir'] ? '—' : number_format($en['size'] ?? 0) . ' B' ?></td>
-          <td class="mono cell-sub"><?= e($en['mod_time'] ?? '') ?></td>
+          <td class="mono"><?= $en['_is_dir'] ? '—' : number_format($en['size'] ?? 0) . ' B' ?></td>
+          <td class="mono cell-sub"><?= !empty($en['mod_time']) ? date('Y-m-d H:i', (int)$en['mod_time']) : '—' ?></td>
           <td><div class="row-actions">
-            <?php if (!$en['is_dir']): ?>
+            <?php if (!$en['_is_dir']): ?>
               <a class="act-btn" title="Download" href="<?= GP_API_URL ?>/api/servers/<?= $id ?>/files/content?path=<?= urlencode($full) ?>&token=<?= urlencode(gp_token()) ?>"><?= icon('download', 15) ?></a>
             <?php endif; ?>
             <a class="act-btn danger" title="Delete" href="/?p=server/files&id=<?= $id ?>&path=<?= urlencode($path) ?>&delete=<?= urlencode($full) ?>" onclick="return confirm('Delete <?= e($en['name']) ?>?')"><?= icon('trash', 15) ?></a>

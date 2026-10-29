@@ -67,10 +67,14 @@ func runWS(ctx context.Context, opts JoinOptions, nodeToken, nodeName string, su
 	})
 	defer sup.Detach()
 
-	// hello frame (nama node asli — bukan "resume", review milestone-1)
+	// hello frame (nama node asli — bukan "resume", review milestone-1).
+	// Dikirim LEWAT writeCh (satu-satunya penulis WS) — tulis langsung di
+	// sini balapan dengan goroutine tulis dan bisa merusak stream.
 	hello, _ := json.Marshal(map[string]any{"name": nodeName, "version": "0.2.0"})
-	if err := sendFrame(ctx, c, Frame{Ch: "rpc", Type: "hello", Payload: hello}); err != nil {
-		return fmt.Errorf("send hello: %w", err)
+	select {
+	case writeCh <- Frame{Ch: "rpc", Type: "hello", Payload: hello}:
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 
 	// goroutine baca: frame panel → supervisor (Read boleh paralel dengan
@@ -85,6 +89,9 @@ func runWS(ctx context.Context, opts JoinOptions, nodeToken, nodeName string, su
 			}
 			var f Frame
 			if json.Unmarshal(data, &f) == nil {
+				if f.Ch == "rpc" {
+					log.Printf("daemon: frame %s/%s", f.Ch, f.Type)
+				}
 				sup.HandleFrame(f)
 			}
 		}

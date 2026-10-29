@@ -194,7 +194,7 @@ func (f *osFS) List(p string) ([]Entry, error) {
 		if err != nil {
 			continue // file hilang saat listing — lewati
 		}
-		e := Entry{Name: n, Size: fi.Size()}
+		e := Entry{Name: n, Size: fi.Size(), ModTime: fi.ModTime().Unix()}
 		switch {
 		case fi.IsDir():
 			e.Mode = "d"

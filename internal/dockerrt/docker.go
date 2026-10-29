@@ -35,6 +35,23 @@ func NewDocker() (*dockerRT, error) {
 	return &dockerRT{cli: cli}, nil
 }
 
+// DockerAvailable: cek daemon Docker benar-benar bisa dihubungi (Ping).
+// NewDocker saja tidak cukup — client terbentuk walau socket tidak ada.
+func DockerAvailable(ctx context.Context) error {
+	cli, err := client.NewClientWithOpts(
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	)
+	if err != nil {
+		return fmt.Errorf("docker client: %w", err)
+	}
+	defer cli.Close()
+	if _, err := cli.Ping(ctx); err != nil {
+		return fmt.Errorf("docker ping: %w", err)
+	}
+	return nil
+}
+
 // refToName: nama container = garuda-<ref> (nama host-side deterministic).
 func refToName(ref string) string {
 	return "garuda-" + strings.ToLower(strings.TrimSpace(ref))

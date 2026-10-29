@@ -6,3 +6,4 @@ garuda-panel.db-*
 test_run.db*
 web/node_modules/
 
+ws_url.txt

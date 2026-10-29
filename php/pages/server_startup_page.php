@@ -12,14 +12,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['var_name'])) {
 }
 
 $vars = gp_api('GET', "/api/servers/$id/variables", null, gp_token());
-$varList = $vars['data'] ?? [];
+$varList = $vars['data']['variables'] ?? [];
 
 gp_server_head($s, $id, 'startup');
 ?>
 
 <div class="card">
   <h3><?= icon('terminal', 15) ?> Startup command</h3>
-  <p class="mono" style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border-soft);overflow-x:auto;white-space:pre"><?= e($s['startup'] ?? $s['egg_startup'] ?? '-') ?></p>
+  <p class="mono" style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border-soft);overflow-x:auto;white-space:pre"><?= e(!empty($s['startup_cmd']) ? $s['startup_cmd'] : '-') ?></p>
 </div>
 
 <div class="card">

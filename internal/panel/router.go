@@ -107,30 +107,36 @@ func Routes(s *Server) http.Handler {
 // installUserRoutes: rute user (owner/admin) — power, console WS, stats, files.
 func installServerRoutes(s *Server, r chi.Router) {
 	r.Route("/api/servers/{id}", func(sr chi.Router) {
-		sr.Use(s.Sessions.RequireAuth)
-		sr.Post("/power", s.handleServerPower)
-		sr.Post("/console-token", s.handleConsoleToken)
-		sr.Get("/ws", s.handleServerWS) // auth via frame pertama (token 60s)
+		// /ws TANPA RequireAuth: browser tidak bisa mengirim header Bearer
+		// saat handshake WebSocket. Auth dilakukan via frame pertama
+		// {t:"auth", token} — console token sekali pakai 60 detik.
+		sr.Get("/ws", s.handleServerWS)
 
-		// file manager (milestone 3)
-		sr.Get("/files", s.handleFileList)
-		sr.Get("/files/usage", s.handleFileUsage)
-		sr.Get("/files/content", s.handleFileRead)
-		sr.Put("/files", s.handleFileWrite) // upload (body streaming)
-		sr.Post("/files/mkdir", s.handleFileMkdir)
-		sr.Post("/files/rename", s.handleFileRename)
-		sr.Post("/files/extract", s.handleFileExtract)
-		sr.Delete("/files", s.handleFileDelete)
+		sr.Group(func(sr chi.Router) {
+			sr.Use(s.Sessions.RequireAuth)
+			sr.Post("/power", s.handleServerPower)
+			sr.Post("/console-token", s.handleConsoleToken)
 
-		// egg variables (milestone 3): lihat/ubah variable editable
-		sr.Get("/variables", s.handleServerVariablesGet)
-		sr.Patch("/variables/{name}", s.handleServerVariableSet)
+			// file manager (milestone 3)
+			sr.Get("/files", s.handleFileList)
+			sr.Get("/files/usage", s.handleFileUsage)
+			sr.Get("/files/content", s.handleFileRead)
+			sr.Put("/files", s.handleFileWrite) // upload (body streaming)
+			sr.Post("/files/mkdir", s.handleFileMkdir)
+			sr.Post("/files/rename", s.handleFileRename)
+			sr.Post("/files/extract", s.handleFileExtract)
+			sr.Delete("/files", s.handleFileDelete)
 
-		// server detail & sub-resources (milestone 4)
-		sr.Get("/", s.handleServerUserGet)
-		sr.Get("/activity", s.handleServerActivity)
-		sr.Get("/allocations", s.handleServerAllocationsList)
-		sr.Post("/allocations/primary", s.handleServerSetPrimaryAllocation)
+			// egg variables (milestone 3): lihat/ubah variable editable
+			sr.Get("/variables", s.handleServerVariablesGet)
+			sr.Patch("/variables/{name}", s.handleServerVariableSet)
+
+			// server detail & sub-resources (milestone 4)
+			sr.Get("/", s.handleServerUserGet)
+			sr.Get("/activity", s.handleServerActivity)
+			sr.Get("/allocations", s.handleServerAllocationsList)
+			sr.Post("/allocations/primary", s.handleServerSetPrimaryAllocation)
+		})
 	})
 
 	// user server list (GET /api/servers)

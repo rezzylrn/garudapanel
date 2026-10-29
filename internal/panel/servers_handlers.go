@@ -26,8 +26,13 @@ type serverReq struct {
 
 func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT sv.id, sv.uuid, sv.name, sv.owner_id, sv.node_id, sv.egg_id,
-		sv.allocation_id, sv.memory_mb, sv.disk_mb, sv.cpu_percent, sv.status, sv.created_at
-		FROM servers sv ORDER BY sv.id`)
+		sv.allocation_id, sv.memory_mb, sv.disk_mb, sv.cpu_percent, sv.status, sv.created_at,
+		COALESCE(e.name, ''), COALESCE(n.name, ''), COALESCE(u.username, '')
+		FROM servers sv
+		LEFT JOIN eggs e ON e.id = sv.egg_id
+		LEFT JOIN nodes n ON n.id = sv.node_id
+		LEFT JOIN users u ON u.id = sv.owner_id
+		ORDER BY sv.id`)
 	if err != nil {
 		writeErr(w, 500, "db error")
 		return
@@ -36,9 +41,9 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, owner, node, egg, alloc, mem, disk, created int64
-		var uuid, name, status string
+		var uuid, name, status, eggName, nodeName, ownerName string
 		var cpu int64
-		if err := rows.Scan(&id, &uuid, &name, &owner, &node, &egg, &alloc, &mem, &disk, &cpu, &status, &created); err != nil {
+		if err := rows.Scan(&id, &uuid, &name, &owner, &node, &egg, &alloc, &mem, &disk, &cpu, &status, &created, &eggName, &nodeName, &ownerName); err != nil {
 			writeErr(w, 500, "scan error")
 			return
 		}
@@ -46,6 +51,7 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 			"id": id, "uuid": uuid, "name": name, "owner_id": owner, "node_id": node,
 			"egg_id": egg, "allocation_id": alloc, "memory_mb": mem, "disk_mb": disk,
 			"cpu_percent": cpu, "status": status, "created_at": created,
+			"egg_name": eggName, "node_name": nodeName, "owner_name": ownerName,
 		})
 	}
 	writeJSON(w, 200, out)
@@ -236,10 +242,11 @@ func (s *Server) handleUserServersList(w http.ResponseWriter, r *http.Request) {
 	sess := auth.SessionFrom(r.Context())
 	q := `SELECT sv.id, sv.uuid, sv.name, sv.owner_id, sv.node_id, sv.egg_id,
 		sv.allocation_id, sv.memory_mb, sv.disk_mb, sv.cpu_percent, sv.status, sv.created_at,
-		COALESCE(n.name, ''), COALESCE(a.ip, ''), COALESCE(a.port, 0)
+		COALESCE(n.name, ''), COALESCE(a.ip, ''), COALESCE(a.port, 0), COALESCE(e.name, '')
 		FROM servers sv
 		LEFT JOIN nodes n ON n.id = sv.node_id
-		LEFT JOIN allocations a ON a.id = sv.allocation_id`
+		LEFT JOIN allocations a ON a.id = sv.allocation_id
+		LEFT JOIN eggs e ON e.id = sv.egg_id`
 	args := []any{}
 	if !sess.IsAdmin {
 		q += ` WHERE sv.owner_id = ?`
@@ -258,10 +265,10 @@ func (s *Server) handleUserServersList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var id, owner, node, egg, alloc, mem, disk, created int64
 		var cpu int
-		var uuid, name, status, nodeName, ip string
+		var uuid, name, status, nodeName, ip, eggName string
 		var port int
 		if err := rows.Scan(&id, &uuid, &name, &owner, &node, &egg, &alloc, &mem, &disk, &cpu, &status, &created,
-			&nodeName, &ip, &port); err != nil {
+			&nodeName, &ip, &port, &eggName); err != nil {
 			writeErr(w, 500, "scan error")
 			return
 		}
@@ -273,6 +280,7 @@ func (s *Server) handleUserServersList(w http.ResponseWriter, r *http.Request) {
 			"node_id":       node,
 			"node_name":     nodeName,
 			"egg_id":        egg,
+			"egg_name":      eggName,
 			"allocation_id": alloc,
 			"ip":            ip,
 			"port":          port,
@@ -296,18 +304,19 @@ func (s *Server) handleServerUserGet(w http.ResponseWriter, r *http.Request) {
 	sess := auth.SessionFrom(r.Context())
 	var id2, owner, node, egg, alloc, mem, disk, created int64
 	var cpu int
-	var uuid, name, status, nodeName, eggName, ip string
+	var uuid, name, status, nodeName, eggName, ip, startupCmd string
 	var port int
 	err := s.DB.QueryRow(`SELECT sv.id, sv.uuid, sv.name, sv.owner_id, sv.node_id, sv.egg_id, sv.allocation_id,
 		sv.memory_mb, sv.disk_mb, sv.cpu_percent, sv.status, sv.created_at,
-		COALESCE(n.name, ''), COALESCE(e.name, ''), COALESCE(a.ip, ''), COALESCE(a.port, 0)
+		COALESCE(n.name, ''), COALESCE(e.name, ''), COALESCE(a.ip, ''), COALESCE(a.port, 0),
+		COALESCE(e.startup_cmd, '')
 		FROM servers sv
 		LEFT JOIN nodes n ON n.id = sv.node_id
 		LEFT JOIN eggs e ON e.id = sv.egg_id
 		LEFT JOIN allocations a ON a.id = sv.allocation_id
 		WHERE sv.id=?`, id).
 		Scan(&id2, &uuid, &name, &owner, &node, &egg, &alloc, &mem, &disk, &cpu, &status, &created,
-			&nodeName, &eggName, &ip, &port)
+			&nodeName, &eggName, &ip, &port, &startupCmd)
 	if err == sql.ErrNoRows {
 		writeErr(w, 404, "server not found")
 		return
@@ -336,6 +345,7 @@ func (s *Server) handleServerUserGet(w http.ResponseWriter, r *http.Request) {
 		"disk_mb":       disk,
 		"cpu_percent":   cpu,
 		"status":        status,
+		"startup_cmd":   startupCmd,
 		"created_at":    created,
 	})
 }

@@ -8,6 +8,16 @@ gp_server_head($s, $id, 'console');
 
 $tok = gp_api('POST', "/api/servers/$id/console-token", null, gp_token());
 $wsToken = $tok['data']['token'] ?? '';
+// WS base: URL publik tunnel Go panel (ditulis keepalive-ws.sh tiap reconnect)
+// — browser di luar VM tidak bisa mencapai 127.0.0.1:8080. Fallback: host:port API lokal.
+$wsBaseFile = trim(@file_get_contents(__DIR__ . '/../ws_url.txt') ?: '');
+if ($wsBaseFile !== '') {
+    $wsBase = $wsBaseFile; // https://....serveousercontent.com
+    $wsProto = 'wss:';
+} else {
+    $wsBase = parse_url(GP_API_URL, PHP_URL_HOST) . ':' . (parse_url(GP_API_URL, PHP_URL_PORT) ?: 80);
+    $wsProto = (parse_url(GP_API_URL, PHP_URL_SCHEME) === 'https') ? 'wss:' : 'ws:';
+}
 $st = $s['status'] ?? 'offline';
 ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
@@ -22,9 +32,7 @@ $st = $s['status'] ?? 'offline';
   const term = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: '#000000' } });
   term.open(document.getElementById('terminal'));
   const statusEl = document.getElementById('conn-status');
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const apiHost = <?= json_encode(parse_url(GP_API_URL, PHP_URL_HOST) . ':' . (parse_url(GP_API_URL, PHP_URL_PORT) ?: 80)) ?>;
-  const ws = new WebSocket(`${proto}//${apiHost}/api/servers/<?= $id ?>/ws`);
+  const ws = new WebSocket(`<?= $wsProto ?>//<?= e(preg_replace('#^https?://#', '', $wsBase)) ?>/api/servers/<?= $id ?>/ws`);
   ws.onopen = () => { statusEl.textContent = 'Authenticating…'; ws.send(JSON.stringify({ t: 'auth', token: <?= json_encode($wsToken) ?> })); };
   ws.onmessage = (ev) => {
     try {

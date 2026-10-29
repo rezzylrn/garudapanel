@@ -51,11 +51,19 @@ func Join(opts JoinOptions) error {
 		log.Printf("joined as node %q; node token saved to %s", nodeName, opts.StorePath)
 	}
 
-	// 2. Supervisor: container runtime asli (Docker) — semua state container
-	//    lewat sini (SPEC §7.1: daemon satu-satunya yang boleh ubah state).
-	rt, err := dockerrt.NewDocker()
-	if err != nil {
-		return fmt.Errorf("docker runtime: %w", err)
+	// 2. Supervisor: container runtime — Docker bila tersedia, else proses
+	//    host langsung (tanpa isolasi container). Fallback ini yang membuat
+	//    server tetap bisa jalan di host tanpa Docker; daemon mencatatnya
+	//    dengan jelas di log.
+	var rt dockerrt.ContainerRuntime
+	if err := dockerrt.DockerAvailable(ctx); err != nil {
+		log.Printf("WARNING: docker tidak tersedia (%v) — memakai PROCESS runtime: server jalan sebagai proses host langsung, TANPA isolasi container", err)
+		rt = dockerrt.NewProcess()
+	} else {
+		rt, err = dockerrt.NewDocker()
+		if err != nil {
+			return fmt.Errorf("docker runtime: %w", err)
+		}
 	}
 	sup := NewSupervisor(rt, SupervisorConfig{
 		DataDir: opts.DataDir,

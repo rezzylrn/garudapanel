@@ -72,7 +72,10 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 		go func() {
 			for f := range writeCh {
 				if err := writeFrame(r.Context(), conn, f); err != nil {
-					// koneksi putus: tutup — read loop yang akan membersihkan
+					// koneksi putus: tutup — read loop yang akan membersihkan.
+					// JANGAN diam: error tulis di sini = semua frame panel→daemon
+					// berikutnya hilang; log supaya ketahuan.
+					log.Printf("hub: node %d: write frame %s: %v", nodeID, f.Type, err)
 					return
 				}
 			}
@@ -103,9 +106,12 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 				hub.Dispatch(nodeID, f)
 			case "hello":
 				log.Printf("node %d hello", nodeID)
-				// kirim daftar server milik node ini (servers.sync)
+				// kirim daftar server milik node ini (servers.sync) LEWAT
+				// writeCh (c.Send) — SATU-SATUNYA penulis WS. writeFrame
+				// langsung di sini pernah bikin goroutine tulis mati diam-diam
+				// (concurrent write) sehingga frame power berikutnya hilang.
 				if payload := ServersSyncPayload(db, nodeID); payload != nil {
-					_ = writeFrame(ctx, conn, Frame{Ch: "rpc", Type: "servers.sync", Payload: payload})
+					_ = c.Send(Frame{Ch: "rpc", Type: "servers.sync", Payload: payload})
 				}
 			case "heartbeat":
 				// cukup diterima; node dianggap online selama koneksi hidup
@@ -124,7 +130,7 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 // terdaftar di node ini) — dikirim saat daemon hello.
 func ServersSyncPayload(db *sql.DB, nodeID int64) []byte {
 	rows, err := db.Query(`SELECT sv.uuid, e.docker_images, sv.memory_mb, sv.cpu_percent, e.config_stop, a.ip, a.port,
-		sv.disk_mb
+		sv.disk_mb, COALESCE(e.startup_cmd, '')
 		FROM servers sv
 		JOIN eggs e ON e.id = sv.egg_id
 		JOIN allocations a ON a.id = sv.allocation_id
@@ -151,11 +157,12 @@ func ServersSyncPayload(db *sql.DB, nodeID int64) []byte {
 		imagesJSON string
 		ip         string
 		port       int
+		startupCmd string
 	}
 	rawServers := []rawSyncServer{}
 	for rows.Next() {
 		var s rawSyncServer
-		if err := rows.Scan(&s.UUID, &s.imagesJSON, &s.MemoryMB, &s.CPUPercent, &s.StopCommand, &s.ip, &s.port, &s.DiskMB); err != nil {
+		if err := rows.Scan(&s.UUID, &s.imagesJSON, &s.MemoryMB, &s.CPUPercent, &s.StopCommand, &s.ip, &s.port, &s.DiskMB, &s.startupCmd); err != nil {
 			continue
 		}
 		s.Port = s.port
@@ -168,7 +175,6 @@ func ServersSyncPayload(db *sql.DB, nodeID int64) []byte {
 				break
 			}
 		}
-		s.Cmd = []string{"/bin/sh", "-c", "echo 'garuda: startup command belum dikonfigurasi (egg startup phase 3)'"}
 		rawServers = append(rawServers, s)
 	}
 	rows.Close() // pastikan rows ditutup sebelum query serverVariableEnv
@@ -178,8 +184,13 @@ func ServersSyncPayload(db *sql.DB, nodeID int64) []byte {
 		s := raw.syncServer
 		// env: SERVER_IP/PORT + egg variables (nilai server_variables override
 		// default; SPEC §3/§5.8 — variable ikut env container).
-		s.Env = append([]string{"SERVER_IP=" + raw.ip, "SERVER_PORT=" + itoa(raw.port)},
+		env := append([]string{"SERVER_IP=" + raw.ip, "SERVER_PORT=" + itoa(raw.port)},
 			serverVariableEnv(db, s.UUID)...)
+		s.Env = env
+		// startup: egg startup_cmd dengan {{VAR}} disubstitusi nilai variabel.
+		// ${VAR} dibiarkan — diekspansi shell dari env saat jalan. Bash wajib
+		// (egg memakai sintaks [[ ]]).
+		s.Cmd = []string{"/bin/bash", "-c", substituteStartupVars(raw.startupCmd, env)}
 		servers = append(servers, s)
 	}
 	b, err := json.Marshal(map[string]any{"servers": servers})
