@@ -29,6 +29,7 @@ $user = gp_user();
     <div class="section">Administration</div>
     <a href="/?p=admin/nodes" class="<?= ($active_nav ?? '') === 'nodes' ? 'active' : '' ?>"><?= icon('nodes', 18) ?> Nodes</a>
     <a href="/?p=admin/servers" class="<?= ($active_nav ?? '') === 'admin_servers' ? 'active' : '' ?>"><?= icon('cpu', 18) ?> All Servers</a>
+    <a href="/?p=admin/nests" class="<?= ($active_nav ?? '') === 'nests' ? 'active' : '' ?>"><?= icon('layers', 18) ?> Nests</a>
     <a href="/?p=admin/eggs" class="<?= ($active_nav ?? '') === 'eggs' ? 'active' : '' ?>"><?= icon('egg', 18) ?> Eggs</a>
     <a href="/?p=admin/users" class="<?= ($active_nav ?? '') === 'users' ? 'active' : '' ?>"><?= icon('users', 18) ?> Users</a>
     <a href="/?p=admin/locations" class="<?= ($active_nav ?? '') === 'locations' ? 'active' : '' ?>"><?= icon('location', 18) ?> Locations</a>

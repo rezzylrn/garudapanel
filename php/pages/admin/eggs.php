@@ -38,14 +38,18 @@ require __DIR__ . '/../../partials/header.php';
   <h3><?= icon('upload', 15) ?> Import egg.json</h3>
   <form method="POST" enctype="multipart/form-data">
     <div class="form-grid">
-      <div class="field"><label>Nest</label>
+      <div class="field"><label>Nest <a href="/?p=admin/nests" style="text-transform:none;letter-spacing:0;color:var(--accent)">Manage nests →</a></label>
+        <?php if (empty($nestList)): ?>
+          <p style="font-size:13px;color:var(--text-dim)">No nests yet. <a href="/?p=admin/nests" style="color:var(--accent)">Create a nest first</a>, then import eggs into it.</p>
+        <?php else: ?>
         <select name="nest_id" required>
           <?php foreach ($nestList as $n): ?><option value="<?= $n['id'] ?>"><?= e($n['name']) ?></option><?php endforeach; ?>
         </select>
+        <?php endif; ?>
       </div>
       <div class="field"><label>egg.json file</label><input type="file" name="eggfile" accept=".json" required></div>
     </div>
-    <button type="submit" class="btn primary" style="margin-top:12px"><?= icon('upload', 15) ?> Import</button>
+    <button type="submit" class="btn primary" style="margin-top:12px" <?= empty($nestList) ? 'disabled' : '' ?>><?= icon('upload', 15) ?> Import</button>
   </form>
   <p style="color:var(--text-mute);font-size:12px;margin-top:10px">Upload a Pterodactyl egg export (PTDL_v2). Variables are imported automatically.</p>
 </div>

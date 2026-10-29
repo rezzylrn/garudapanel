@@ -55,6 +55,7 @@ $routes = [
     'server/startup'  => 'pages/server_startup_page.php',
     'admin/nodes'     => 'pages/admin/nodes.php',
     'admin/servers'   => 'pages/admin/servers.php',
+    'admin/nests'     => 'pages/admin/nests.php',
     'admin/eggs'      => 'pages/admin/eggs.php',
     'admin/users'     => 'pages/admin/users.php',
     'admin/locations' => 'pages/admin/locations.php',
