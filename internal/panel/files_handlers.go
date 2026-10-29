@@ -105,7 +105,11 @@ func (s *Server) handleFileList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	p, _ := cleanRelPath(r.URL.Query().Get("path"))
+	p, err := cleanRelPath(r.URL.Query().Get("path"))
+	if err != nil {
+		writeErr(w, 422, "path required (no traversal)")
+		return
+	}
 	raw, err := DaemonRPC(s, nodeID, "file", map[string]any{
 		"server_uuid": uuid, "op": "list", "path": p,
 	}, 15*time.Second, nil)

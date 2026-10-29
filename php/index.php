@@ -1,5 +1,15 @@
 <?php
 // GarudaPanel PHP frontend — front controller (multi-page)
+
+// php -S router: serve static files (assets/) directly instead of routing them
+if (php_sapi_name() === 'cli-server') {
+    $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+    $staticFile = __DIR__ . $uriPath;
+    if ($uriPath !== '/' && is_file($staticFile)) {
+        return false;
+    }
+}
+
 session_start();
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lib/api.php';

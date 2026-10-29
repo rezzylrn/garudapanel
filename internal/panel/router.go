@@ -88,6 +88,16 @@ func Routes(s *Server) http.Handler {
 		ar.Delete("/servers/{id}", s.handleServersDelete)
 	})
 
+	// Unknown /api/* routes must return JSON 404, not the SPA fallback
+	// (covers non-GET methods; GET is handled inside staticHandler).
+	r.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			writeErr(w, http.StatusNotFound, "not found")
+			return
+		}
+		staticHandler().ServeHTTP(w, r)
+	}))
+
 	// frontend placeholder (fase 4: go:embed build Svelte)
 	r.Get("/*", staticHandler())
 
@@ -146,6 +156,11 @@ func staticHandler() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Unknown /api/* routes → JSON 404, never the SPA fallback.
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			writeErr(w, http.StatusNotFound, "not found")
+			return
+		}
 		path := strings.TrimPrefix(r.URL.Path, "/")
 		if path == "" {
 			path = "index.html"

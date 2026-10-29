@@ -38,7 +38,8 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 
 func decodeJSON(r *http.Request, dst any) error {
 	dec := json.NewDecoder(io.LimitReader(r.Body, 1<<20)) // 1MB max body
-	dec.DisallowUnknownFields()
+	// Unknown fields are IGNORED (Pterodactyl-compatible payloads carry
+	// extra fields like env_variable/rules); type errors still fail.
 	return dec.Decode(dst)
 }
 
