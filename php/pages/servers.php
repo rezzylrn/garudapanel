@@ -5,7 +5,7 @@ $active_nav = 'servers';
 require_once __DIR__ . '/server_layout.php';
 $r = gp_api('GET', '/api/servers', null, gp_token());
 $list = $r['data'] ?? [];
-require __DIR__ . '/partials/header.php';
+require __DIR__ . '/../partials/header.php';
 ?>
 <div class="page-head">
   <div><h1><?= icon('server', 20) ?> Servers</h1><p><?= count($list) ?> total</p></div>
@@ -30,4 +30,4 @@ require __DIR__ . '/partials/header.php';
   </table></div>
   <?php endif; ?>
 </div>
-<?php require __DIR__ . '/partials/footer.php'; ?>
+<?php require __DIR__ . '/../partials/footer.php'; ?>
