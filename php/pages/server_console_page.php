@@ -1,12 +1,19 @@
 <?php
-// Console tab — xterm.js + WebSocket (same protocol as before, minimal JS)
+// Server — Console page (standalone, multi-page)
+require_once __DIR__ . '/server_layout.php';
+$id = (int)($_GET['id'] ?? 0);
+if ($id <= 0) { die('Invalid server'); }
+$s = gp_load_server($id);
+gp_server_head($s, $id, 'console');
+
 $tok = gp_api('POST', "/api/servers/$id/console-token", null, gp_token());
 $wsToken = $tok['data']['token'] ?? '';
+$st = $s['status'] ?? 'offline';
 ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
 <div class="console-bar">
   <span class="status-dot <?= $st === 'running' ? 'on' : 'off' ?>"></span>
-  <span id="conn-status" style="color:var(--text-dim);font-size:13px">Connecting…</span>
+  <span id="conn-status" class="status-line">Connecting…</span>
 </div>
 <div id="terminal"></div>
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
@@ -16,7 +23,6 @@ $wsToken = $tok['data']['token'] ?? '';
   term.open(document.getElementById('terminal'));
   const statusEl = document.getElementById('conn-status');
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  // Console WS lives on the Go API host
   const apiHost = <?= json_encode(parse_url(GP_API_URL, PHP_URL_HOST) . ':' . (parse_url(GP_API_URL, PHP_URL_PORT) ?: 80)) ?>;
   const ws = new WebSocket(`${proto}//${apiHost}/api/servers/<?= $id ?>/ws`);
   ws.onopen = () => { statusEl.textContent = 'Authenticating…'; ws.send(JSON.stringify({ t: 'auth', token: <?= json_encode($wsToken) ?> })); };
@@ -31,3 +37,4 @@ $wsToken = $tok['data']['token'] ?? '';
   term.onData((d) => { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'in', d })); });
 })();
 </script>
+<?php require __DIR__ . '/../partials/footer.php'; ?>

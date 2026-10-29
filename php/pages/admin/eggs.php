@@ -3,7 +3,6 @@
 $page_title = 'Eggs';
 $active_nav = 'eggs';
 
-// Handle egg.json import
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['eggfile'])) {
     $nestId = (int)($_POST['nest_id'] ?? 0);
     $content = file_get_contents($_FILES['eggfile']['tmp_name']);
@@ -29,42 +28,47 @@ require __DIR__ . '/../../partials/header.php';
 ?>
 
 <div class="page-head">
-  <div><h1>Eggs</h1><p>Server templates (Pterodactyl-compatible)</p></div>
+  <div><h1><?= icon('egg', 20) ?> Eggs</h1><p>Server templates (Pterodactyl-compatible)</p></div>
 </div>
 
-<?php if (!empty($okMsg)): ?><div class="alert ok"><?= $okMsg ?></div><?php endif; ?>
-<?php if (!empty($error)): ?><div class="alert error"><?= e($error) ?></div><?php endif; ?>
+<?php if (!empty($okMsg)): ?><div class="alert ok"><?= icon('check', 16) ?> <?= $okMsg ?></div><?php endif; ?>
+<?php if (!empty($error)): ?><div class="alert error"><?= icon('x', 16) ?> <?= e($error) ?></div><?php endif; ?>
 
 <div class="card" style="margin-bottom:16px">
-  <h3>Import egg.json</h3>
-  <form method="POST" enctype="multipart/form-data" style="display:flex;gap:12px;align-items:end">
-    <div class="field" style="margin:0"><label>Nest</label>
-      <select name="nest_id" required>
-        <?php foreach ($nestList as $n): ?><option value="<?= $n['id'] ?>"><?= e($n['name']) ?></option><?php endforeach; ?>
-      </select>
+  <h3><?= icon('upload', 15) ?> Import egg.json</h3>
+  <form method="POST" enctype="multipart/form-data">
+    <div class="form-grid">
+      <div class="field"><label>Nest</label>
+        <select name="nest_id" required>
+          <?php foreach ($nestList as $n): ?><option value="<?= $n['id'] ?>"><?= e($n['name']) ?></option><?php endforeach; ?>
+        </select>
+      </div>
+      <div class="field"><label>egg.json file</label><input type="file" name="eggfile" accept=".json" required></div>
     </div>
-    <div class="field" style="margin:0"><label>egg.json file</label><input type="file" name="eggfile" accept=".json" required></div>
-    <button type="submit" class="btn primary">Import</button>
+    <button type="submit" class="btn primary" style="margin-top:12px"><?= icon('upload', 15) ?> Import</button>
   </form>
   <p style="color:var(--text-mute);font-size:12px;margin-top:10px">Upload a Pterodactyl egg export (PTDL_v2). Variables are imported automatically.</p>
 </div>
 
 <div class="card">
-  <table>
+  <?php if (empty($eggList)): ?>
+  <div class="empty"><?= icon('egg', 32) ?><p>No eggs yet — import one above</p></div>
+  <?php else: ?>
+  <div class="table-wrap"><table>
     <thead><tr><th>Name</th><th>Author</th><th>Image</th><th>Stop</th></tr></thead>
     <tbody>
     <?php foreach ($eggList as $eg): ?>
       <?php $imgs = $eg['docker_images'] ?? []; $first = is_array($imgs) ? reset($imgs) : ''; ?>
       <tr>
-        <td><strong><?= e($eg['name']) ?></strong><br><span style="color:var(--text-mute);font-size:12px"><?= e($eg['description'] ?? '') ?></span></td>
-        <td style="color:var(--text-dim)"><?= e($eg['author'] ?? '-') ?></td>
-        <td class="mono" style="max-width:280px;overflow:hidden;text-overflow:ellipsis"><?= e($first) ?></td>
+        <td><span class="cell-main"><?= e($eg['name']) ?></span><br><span class="cell-sub"><?= e($eg['description'] ?? '') ?></span></td>
+        <td><?= e($eg['author'] ?? '-') ?></td>
+        <td class="mono" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= e($first) ?></td>
         <td class="mono"><?= e($eg['config_stop'] ?? '^C') ?></td>
       </tr>
     <?php endforeach; ?>
-    <?php if (empty($eggList)): ?><tr><td colspan="4" style="color:var(--text-mute);text-align:center">No eggs yet — import one above</td></tr><?php endif; ?>
     </tbody>
-  </table>
+  </table></div>
+  <?php endif; ?>
 </div>
 
 <?php require __DIR__ . '/../../partials/footer.php'; ?>

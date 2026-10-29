@@ -20,7 +20,8 @@ function gp_api(string $method, string $path, $body = null, ?string $token = nul
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err = curl_error($ch);
-    curl_close($ch);
+    // NOTE: curl_close() intentionally omitted — deprecated in PHP 8.5,
+    // handle is freed automatically at end of scope.
     if ($resp === false) {
         return ['ok' => false, 'code' => 0, 'error' => 'Connection failed: ' . $err, 'data' => null];
     }

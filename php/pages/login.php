@@ -1,5 +1,6 @@
 <?php
 // Login page
+require_once __DIR__ . '/../lib/icons.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $r = gp_api('POST', '/api/auth/login', [
         'username' => $_POST['username'] ?? '',
@@ -26,9 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 <div class="login-wrap">
   <div class="card login-card">
-    <div class="brand">Garuda<span>Panel</span></div>
+    <div class="brand"><?= icon('layers', 22) ?> Garuda<span>Panel</span></div>
     <?php if (!empty($error)): ?>
-    <div class="alert error"><?= e($error) ?></div>
+    <div class="alert error"><?= icon('x', 16) ?> <?= e($error) ?></div>
     <?php endif; ?>
     <form method="POST">
       <div class="field">
@@ -39,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <label>Password</label>
         <input type="password" name="password" required autocomplete="current-password">
       </div>
-      <button type="submit" class="btn primary" style="width:100%">Sign in</button>
+      <button type="submit" class="btn primary" style="width:100%;justify-content:center"><?= icon('key', 15) ?> Sign in</button>
     </form>
   </div>
 </div>

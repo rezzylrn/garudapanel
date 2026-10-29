@@ -16,29 +16,34 @@ $locList = $locs['data'] ?? [];
 require __DIR__ . '/../../partials/header.php';
 ?>
 
-<div class="page-head"><div><h1>Locations</h1></div></div>
-<?php if (!empty($okMsg)): ?><div class="alert ok"><?= e($okMsg) ?></div><?php endif; ?>
-<?php if (!empty($error)): ?><div class="alert error"><?= e($error) ?></div><?php endif; ?>
+<div class="page-head"><div><h1><?= icon('location', 20) ?> Locations</h1></div></div>
+<?php if (!empty($okMsg)): ?><div class="alert ok"><?= icon('check', 16) ?> <?= e($okMsg) ?></div><?php endif; ?>
+<?php if (!empty($error)): ?><div class="alert error"><?= icon('x', 16) ?> <?= e($error) ?></div><?php endif; ?>
 
 <div class="card" style="margin-bottom:16px">
-  <h3>New location</h3>
-  <form method="POST" style="display:grid;grid-template-columns:200px 1fr auto;gap:12px;align-items:end">
-    <div class="field" style="margin:0"><label>Short code</label><input type="text" name="short_code" required placeholder="eu-west"></div>
-    <div class="field" style="margin:0"><label>Description</label><input type="text" name="description" placeholder="Europe West"></div>
-    <button type="submit" name="create" class="btn primary">Create</button>
+  <h3><?= icon('plus', 15) ?> New location</h3>
+  <form method="POST">
+    <div class="form-grid">
+      <div class="field"><label>Short code</label><input type="text" name="short_code" required placeholder="eu-west"></div>
+      <div class="field"><label>Description</label><input type="text" name="description" placeholder="Europe West"></div>
+    </div>
+    <button type="submit" name="create" class="btn primary" style="margin-top:12px"><?= icon('plus', 15) ?> Create</button>
   </form>
 </div>
 
 <div class="card">
-  <table>
+  <?php if (empty($locList)): ?>
+  <div class="empty"><?= icon('location', 32) ?><p>No locations yet</p></div>
+  <?php else: ?>
+  <div class="table-wrap"><table>
     <thead><tr><th>Code</th><th>Description</th></tr></thead>
     <tbody>
     <?php foreach ($locList as $l): ?>
-      <tr><td class="mono"><strong><?= e($l['short_code']) ?></strong></td><td><?= e($l['description'] ?? '') ?></td></tr>
+      <tr><td class="mono"><span class="cell-main"><?= e($l['short_code']) ?></span></td><td><?= e($l['description'] ?? '') ?></td></tr>
     <?php endforeach; ?>
-    <?php if (empty($locList)): ?><tr><td colspan="2" style="color:var(--text-mute);text-align:center">No locations yet</td></tr><?php endif; ?>
     </tbody>
-  </table>
+  </table></div>
+  <?php endif; ?>
 </div>
 
 <?php require __DIR__ . '/../../partials/footer.php'; ?>
