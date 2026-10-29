@@ -18,6 +18,7 @@ package dockerrt
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -48,9 +49,12 @@ type procState struct {
 	stdin  io.WriteCloser
 	done   chan struct{} // ditutup saat proses exit
 	exited bool
-	mu     sync.Mutex // lindungi subs + replay
-	subs   map[*procSub]struct{}
-	replay []byte
+	// runningReported: teks StartupDone sudah terlihat di output (atau
+	// StartupDone kosong sehingga running langsung saat Start).
+	runningReported bool
+	mu              sync.Mutex // lindungi subs + replay
+	subs            map[*procSub]struct{}
+	replay          []byte
 }
 
 // procSub: satu subscriber output (sesi ExecAttach).
@@ -142,6 +146,7 @@ func (r *processRT) Start(ctx context.Context, ref string) error {
 	st.stdin = stdin
 	st.exited = false
 	st.done = make(chan struct{})
+	st.runningReported = false
 	st.mu.Unlock()
 
 	if err := cmd.Start(); err != nil {
@@ -161,7 +166,17 @@ func (r *processRT) Start(ctx context.Context, ref string) error {
 		st.mu.Unlock()
 		r.emit(StateEvent{Ref: ref, Status: StateOffline})
 	}()
-	r.emit(StateEvent{Ref: ref, Status: StateRunning})
+	// Status awal: bila egg punya teks startup-done, tetap "starting"
+	// sampai teks itu muncul di output (dicek broadcast); bila tidak ada,
+	// running begitu proses hidup — sama seperti sebelumnya.
+	if spec.StartupDone == "" {
+		st.mu.Lock()
+		st.runningReported = true
+		st.mu.Unlock()
+		r.emit(StateEvent{Ref: ref, Status: StateRunning})
+	} else {
+		r.emit(StateEvent{Ref: ref, Status: StateStarting})
+	}
 	return nil
 }
 
@@ -181,12 +196,19 @@ func (r *processRT) pumpOutput(st *procState, rd io.Reader) {
 
 // broadcast: simpan ke replay (cap, potong dari depan) + kirim ke subscriber
 // (non-blocking; subscriber lambat kehilangan potongan, proses tidak stall).
+// Di sini juga deteksi teks startup-done: kemunculan pertamanya mengubah
+// status starting → running (pola Pterodactyl wings).
 func (r *processRT) broadcast(st *procState, p []byte) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.replay = append(st.replay, p...)
 	if len(st.replay) > processReplayCap {
 		st.replay = st.replay[len(st.replay)-processReplayCap:]
+	}
+	if !st.runningReported && st.spec.StartupDone != "" && bytes.Contains(p, []byte(st.spec.StartupDone)) {
+		st.runningReported = true
+		// emit hanya mengunci r.mu (bukan st.mu) jadi aman dari sini.
+		defer r.emit(StateEvent{Ref: st.spec.Ref, Status: StateRunning})
 	}
 	cp := append([]byte(nil), p...)
 	for sub := range st.subs {
@@ -278,7 +300,8 @@ func (r *processRT) Remove(ctx context.Context, ref string, force bool) error {
 	return r.killProc(st)
 }
 
-// State: running bila proses hidup, else offline.
+// State: starting bila proses hidup tapi teks startup-done belum muncul,
+// running bila hidup dan done (atau tanpa done), else offline.
 func (r *processRT) State(ctx context.Context, ref string) (string, error) {
 	r.mu.Lock()
 	st, ok := r.procs[ref]
@@ -289,6 +312,9 @@ func (r *processRT) State(ctx context.Context, ref string) (string, error) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if st.cmd != nil && !st.exited {
+		if st.spec.StartupDone != "" && !st.runningReported {
+			return StateStarting, nil
+		}
 		return StateRunning, nil
 	}
 	return StateOffline, nil

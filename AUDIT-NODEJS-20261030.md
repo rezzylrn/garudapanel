@@ -1,39 +1,53 @@
 # GarudaPanel — Audit Node.js Egg "Bot Whatsap" (2026-10-30 dini hari)
 
 Perintah rezz: audit semua sampai bisa jalanin Node.js pakai egg ini (egg_26_jrjw.json).
-Status akhir: SEMUA JALUR TERVERIFIKASI kecuali eksekusi container — terblokir sandbox VM.
+Status akhir: **JS BERHASIL LAUNCH via tombol Start, console live.** Commit 08e91ac.
 
 ## 1. Bug servers.php — FIXED (commit ef8c774)
 - `pages/servers.php` require `partials/header.php` & `footer.php` tanpa `../` → fatal error.
 - Satu-satunya file yang salah; sweep 11 halaman: HTTP 200, 0 fatal error.
 
-## 2. Egg import — OK
-- Egg "Bot Whatsap" (PTDL_v2) import via API JSON `{nest_id, egg}` → ID 2, 5 variables.
-- Catatan: endpoint import HANYA terima JSON, bukan multipart (curl awal gagal "invalid body" — salah format, bukan bug).
-- Variables tampil di GET /api/servers/{id}/variables: GIT_ADDRESS, BRANCH, USERNAME, ACCESS_TOKEN, CMD_RUN (default "npm start").
+## 2. Bug PHP warnings (dari SS rezz 01:33) — FIXED
+- Startup page: `$vars['data']` padahal API return `{"variables":[...]}` → 1 baris warning + tabel kosong. Fix: `['data']['variables']`.
+- Files page: `$en['is_dir']` padahal API return `mode: "f"/"d"` → warning tiap baris. Fix: `mode === 'd'` + kolom mod_time (Go: Entry.ModTime).
+- Startup command tampil "-" karena server detail tidak punya startup_cmd. Fix Go: JOIN eggs + `startup_cmd` di response.
+- List servers: tidak ada egg_name/node_name/owner_name → tampil "-". Fix Go: JOIN di kedua list query.
 
-## 3. Infra test — OK
-- Nest "JavaScript" (ID 3), location "local" (ID 2), node "local-node2" (ID 3, ONLINE via daemon join).
-- Server "Bot WhatsApp Test" (ID 2, UUID 118c682b-...) di node 3.
-- Daemon terima `servers.sync: 1 registered`.
-- Upload package.json + index.js via file API → 200, tampil di listing.
-- Power `start` sampai ke daemon (202 Accepted, "command sent").
+## 3. Bug WS panel→daemon (frame power hilang) — FIXED
+- Akar: sync hello ditulis LANGSUNG via writeFrame sementara goroutine writeCh juga menulis WS yang sama (concurrent write dilarang nhooyr/websocket). Goroutine tulis mati diam-diam → frame power masuk lubang hitam (202 tetap kembali).
+- Fix: SEMUA tulis panel→daemon lewat writeCh (c.Send), termasuk sync hello. Sisi daemon: hello juga lewat writeCh.
+- Bukti: instrumentasi frame log — power sampai setelah fix.
 
-## 4. Docker — GAGAL, batasan keras sandbox (verifikasi 2 jalur)
+## 4. Bug console WS browser 401 — FIXED
+- `/ws` tertutup middleware RequireAuth; browser tidak bisa kirim header Bearer saat handshake WS → console dari browser SELALU 401 (E2E sebelumnya lolos karena test pakai header).
+- Fix: `/ws` keluar dari grup RequireAuth; auth via frame pertama console-token 60 detik (sesuai desain).
+- Console page: WS base URL dari `ws_url.txt` (tunnel serveo kedua khusus port 8080, keepalive-ws.sh) — browser di luar VM tidak bisa capai 127.0.0.1:8080.
+
+## 5. Startup command egg tidak pernah dikirim — FIXED
+- Sync payload hardcode placeholder `echo 'garuda: startup command belum dikonfigurasi'`.
+- Fix: SELECT startup_cmd, substitusi {{VAR}} dari server variables, Cmd = ["/bin/bash", "-c", script] (bash wajib — egg pakai [[ ]]).
+
+## 6. Docker — GAGAL, batasan keras sandbox (verifikasi 2 jalur)
 - `docker.io` 29.1.3 terinstall; dockerd jalan dengan `--iptables=false --bridge=none --storage-driver=vfs`.
-- `docker pull` gagal (TLS timeout — dockerd abaikan env proxy); workaround curl+`docker load` BERHASIL load hello-world.
-- `docker run` GAGAL final: `runc create failed: ... setns: operation not permitted` (seccomp blokir syscall namespace).
-- Kesimpulan: container TIDAK BISA jalan di VM ini. Siklus hidup container (start→running→stop) HANYA bisa diverifikasi di host ber-Docker (PC rezz / VPS). Daemon di VM ini harus pakai FakeRuntime.
+- `docker run` GAGAL final: `runc create failed: ... setns: operation not permitted` (seccomp).
+- Solusi: **ProcessRuntime** (internal/dockerrt/process.go) — daemon fallback otomatis bila Docker ping gagal. Proses jalan langsung di host (TANPA isolasi, dicatat di log). Fitur: broadcast output + replay 100KB, stdin, stop grup sinyal, exit event, stats /proc. Strip prefix /usr/local/bin yolks (path image tidak ada di host).
 
-## 5. Fallback: startup flow egg dengan Node.js asli — OK
-- Dijalankan di volume dir server ASLI (`daemon/data/volumes/118c682b-.../`), env vars sama persis (CMD_RUN="npm start"), Node v24.22.1.
-- Output: `Bot WhatsApp starting...` → `running` (teks startup-done egg) → heartbeat tiap 5 dtk.
-- Terbukti: parsing egg, substitusi variabel, startup command, dan deteksi "running" semuanya benar. Yang belum terbukti HANYA isolasi container-nya.
+## 7. E2E JS launch — LOLOS (2026-10-30 01:47 WIB)
+- POST /power start → daemon frame power → ProcessRuntime start → `node index.js` hidup (PID terverifikasi).
+- Status: offline → running. Console WS (tanpa Bearer): status Connected + replay output asli (`npm start`, `Bot WhatsApp starting...`, `running`, heartbeat) + stats mem 70MB + frame live.
+- POST /power stop → SIGINT grup → offline, tidak ada proses tersisa.
+- 11/11 halaman PHP: HTTP 200, 0 warning. Isi terverifikasi (startup cmd asli, 5 variables, file + mod_time, egg/node/owner name).
 
-## 6. Temuan minor
-- Daemon log: `chown ... operation not permitted` saat upload file (daemon non-root di sandbox). Upload tetap sukses (200). Di production (daemon root) chown jalan normal.
-- Serveo tunnel tidak stabil (putus tiap ~2-5 mnt, URL ganti). Cloudflared diblokir proxy (TLS intercept). Untuk demo ke rezz: pakai URL terbaru dari current_domain.txt.
-- PHP 8.5: `curl_close()` deprecated → warning merusak redirect (sudah dihapus dari lib/api.php).
+## 8. UI remake — palet biru profesional
+- Aksen hijau #4ade80 → biru #3b82f6 (bg navy-slate). Hijau #34d399 hanya untuk status semantik (running/ok). Tombol primary teks putih.
 
-## Yang harus rezz lakukan untuk E2E penuh
-Jalankan installer di PC Pop!_OS (punya Docker) → daemon join → buat server pakai egg ini → Start → console harus keluar "running".
+## 9. Responsif mobile + power guard — riset Pterodactyl (2026-10-30 ~02:10 WIB)
+- Riset source `pterodactyl/panel` (PowerButtons.tsx, ServerConsoleContainer.tsx, Console.tsx, SubNavigation): Start hanya dari offline, Stop jadi Kill saat stopping, dialog konfirmasi hanya untuk Kill, terminal pakai FitAddon, layout grid stacking di mobile.
+- **Responsif**: nol horizontal scroll di semua halaman pada 390px — tabel berubah jadi kartu bertumpuk (label kolom dari `<th>` via JS footer), `overflow-x: clip` di html/body, startup command wrap, terminal pakai FitAddon + frame resize ke daemon, toolbar files menumpuk.
+- **Power 2 langkah**: semua aksi (Start/Restart/Stop/Kill) lewat dialog konfirmasi. Tombol diblokir tetap bisa diklik (aria-disabled) supaya alasannya tampil sebagai toast error.
+- **Startup-done (temuan riset)**: `config_startup_done` egg selama ini TIDAK PERNAH dibaca daemon — status langsung "running" begitu proses hidup, sehingga jendela "starting" tidak pernah ada. Sekarang: ProcessRuntime memantau output, status tetap "starting" sampai teks done muncul (pola wings); sync payload panel→daemon membawa `startup_done`.
+- **State guard backend** (`powerAllowed`, unit test): start hanya dari offline; stop/restart hanya dari running; stop/restart saat starting → 409 "still starting"; kill = escape hatch (boleh saat starting/stopping/running). Jendela balapan 3 detik (bukan 20 — 20 detik salah memblokir stop yang sah).
+- **E2E guard 11/11 LOLOS** (guard-test.py): stop/restart saat starting → 409, kill → 202 → offline, start saat running → 409, stop saat offline → 409, stop normal → offline.
+
+## Yang harus rezz lakukan untuk E2E Docker penuh
+Jalankan installer di PC Pop!_OS (punya Docker) → daemon join (pakai Docker runtime otomatis) → buat server pakai egg ini → Start → console harus keluar "running".

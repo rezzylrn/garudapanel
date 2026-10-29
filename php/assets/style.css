@@ -44,6 +44,8 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+html, body { overflow-x: clip; }
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -53,6 +55,10 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Backstop: tidak ada elemen yang boleh melebarkan halaman. */
+pre, code { max-width: 100%; }
+.main > *, .card > *, .page-head > * { min-width: 0; }
 
 a { color: inherit; }
 button, input, select, textarea { font: inherit; }
@@ -130,7 +136,8 @@ button, input, select, textarea { font: inherit; }
   display: flex; align-items: center; gap: var(--s2);
 }
 .page-head h1 svg { color: var(--text-mute); }
-.page-head p { color: var(--text-dim); font-size: 13px; margin-top: 2px; }
+.page-head p { color: var(--text-dim); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+.page-head-title { min-width: 0; }
 .page-actions { display: flex; gap: var(--s2); flex-wrap: wrap; }
 
 /* ============ Stats ============ */
@@ -216,6 +223,11 @@ tbody tr:hover td { background: var(--surface-hover); }
 .btn.danger:hover { background: var(--danger-dim); }
 .btn.small { padding: 6px var(--s3); font-size: 12px; gap: 5px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Tombol power yang diblokir state guard: tetap bisa diklik supaya
+   alasannya tampil sebagai toast error (bukan native disabled yang diam). */
+.btn.is-blocked { opacity: 0.5; cursor: not-allowed; }
+.btn.danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.danger-solid:hover { background: #ef5350; border-color: #ef5350; }
 
 /* Icon-only action button (tables) */
 .act-btn {
@@ -287,7 +299,8 @@ tbody tr:hover td { background: var(--surface-hover); }
 .subnav a.active svg { color: var(--accent); }
 
 /* ============ Console ============ */
-#terminal { background: #000; border-radius: var(--r-lg); padding: var(--s3); height: 480px; overflow: hidden; }
+#terminal { background: #000; border-radius: var(--r-lg); padding: var(--s3); height: 480px; overflow: hidden; width: 100%; }
+#terminal .xterm { max-width: 100%; }
 .console-bar { display: flex; gap: var(--s2); margin-bottom: var(--s3); align-items: center; flex-wrap: wrap; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 .status-dot.on { background: var(--ok); box-shadow: 0 0 8px rgba(52, 211, 153, 0.6); }
@@ -295,6 +308,45 @@ tbody tr:hover td { background: var(--surface-hover); }
 
 /* ============ Status text (icon + short label) ============ */
 .status-line { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-dim); }
+
+/* ============ Confirm modal & toasts (power actions) ============ */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(3, 6, 12, 0.7);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--s4);
+}
+.modal-backdrop[hidden] { display: none; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--s5);
+  width: 100%; max-width: 420px;
+}
+.modal h2 { font-size: 16px; font-weight: 700; margin-bottom: var(--s2); }
+.modal p { color: var(--text-dim); font-size: 13.5px; margin-bottom: var(--s5); overflow-wrap: anywhere; }
+.modal-actions { display: flex; gap: var(--s2); justify-content: flex-end; flex-wrap: wrap; }
+
+.toast-stack {
+  position: fixed; z-index: 300;
+  left: 50%; transform: translateX(-50%);
+  bottom: var(--s4); width: calc(100% - 32px); max-width: 440px;
+  display: flex; flex-direction: column; gap: var(--s2);
+  pointer-events: none;
+}
+.toast {
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--r-md); padding: var(--s3) var(--s4);
+  font-size: 13.5px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  transition: opacity 250ms var(--ease);
+}
+.toast.ok { border-left-color: var(--ok); }
+.toast.out { opacity: 0; }
+
+/* ============ Files toolbar ============ */
+.files-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+.files-toolbar .crumb-path { overflow-wrap: anywhere; min-width: 0; }
+.files-toolbar .tools { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ============ Responsive ============ */
 @media (max-width: 860px) {
@@ -318,12 +370,49 @@ tbody tr:hover td { background: var(--surface-hover); }
   .sidebar-backdrop.show { display: block; }
 }
 
+/* Tabel jadi kartu bertumpuk di mobile — halaman TIDAK PERNAH geser
+   kanan-kiri. Label kolom diambil dari <th> oleh JS (footer) ke atribut
+   data-label tiap <td>. Pola ini menggantikan scroll horizontal .table-wrap
+   yang dikeluhkan: tidak ada lagi area yang bisa digeser ke samping. */
+@media (max-width: 640px) {
+  .table-wrap { overflow: visible; margin: 0; padding: 0; }
+  .table-wrap table { min-width: 0; }
+  .table-wrap thead { display: none; }
+  .table-wrap table, .table-wrap tbody, .table-wrap tr, .table-wrap td { display: block; width: 100%; }
+  .table-wrap tbody tr {
+    border: 1px solid var(--border-soft); border-radius: var(--r-md);
+    margin-bottom: var(--s2); padding: var(--s2) var(--s3);
+    background: var(--bg-soft);
+  }
+  .table-wrap tbody tr:hover td { background: transparent; }
+  .table-wrap td {
+    border-bottom: none; padding: 4px 0;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    overflow-wrap: anywhere;
+  }
+  .table-wrap td::before {
+    content: attr(data-label);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-mute); font-weight: 600; flex-shrink: 0;
+  }
+  .table-wrap td[data-label=""]::before { display: none; }
+  .table-wrap td[data-label=""] { justify-content: flex-end; }
+  .table-wrap tr.row-single td { justify-content: flex-start; }
+  .table-wrap td form { flex: 1; min-width: 0; }
+  .table-wrap td form input { min-width: 0; }
+  .table-wrap .row-actions { justify-content: flex-end; }
+}
+
 @media (max-width: 520px) {
   .stats { grid-template-columns: 1fr 1fr; gap: var(--s2); }
   .stat .value { font-size: 22px; }
   .page-actions .btn { flex: 1; justify-content: center; }
   .form-grid { grid-template-columns: 1fr; }
   .btn { padding: 9px var(--s3); }
+  .files-toolbar .tools, .files-toolbar .tools form { width: 100%; }
+  .files-toolbar .tools form input[type="text"] { flex: 1; min-width: 0; }
+  .files-toolbar .tools form input[type="file"] { flex: 1; min-width: 0; max-width: none; }
+  .modal-actions .btn { flex: 1; justify-content: center; }
 }
 
 /* ============ Reduced motion ============ */

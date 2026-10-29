@@ -58,6 +58,50 @@ func TestProcessRuntimeRunStop(t *testing.T) {
 	}
 }
 
+func TestProcessRuntimeStartupDone(t *testing.T) {
+	dir := t.TempDir()
+	rt := NewProcess()
+	ctx := context.Background()
+	_ = rt.Create(ctx, ContainerSpec{
+		Ref:         "test-done",
+		Cmd:         []string{"/bin/bash", "-c", "echo booting; sleep 1; echo READY; sleep 30"},
+		HostPath:    dir,
+		StartupDone: "READY",
+	})
+	ch := make(chan StateEvent, 8)
+	evCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go rt.Events(evCtx, ch)
+	if err := rt.Start(ctx, "test-done"); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer rt.Kill(ctx, "test-done")
+	// Sebelum teks done muncul: status harus starting, bukan running.
+	st, _ := rt.State(ctx, "test-done")
+	if st != StateStarting {
+		t.Fatalf("State sebelum done = %q, want starting", st)
+	}
+	// Tunggu event running (teks READY muncul ~1 detik setelah start).
+	deadline := time.Now().Add(5 * time.Second)
+	sawRunning := false
+	for time.Now().Before(deadline) && !sawRunning {
+		select {
+		case ev := <-ch:
+			if ev.Ref == "test-done" && ev.Status == StateRunning {
+				sawRunning = true
+			}
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	if !sawRunning {
+		t.Fatal("tidak ada event running setelah teks startup-done muncul")
+	}
+	st, _ = rt.State(ctx, "test-done")
+	if st != StateRunning {
+		t.Fatalf("State setelah done = %q, want running", st)
+	}
+}
+
 func TestProcessRuntimeExitEvent(t *testing.T) {
 	dir := t.TempDir()
 	rt := NewProcess()

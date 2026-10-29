@@ -91,9 +91,9 @@ gp_server_head($s, $id, 'files');
 ?>
 
 <div class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap">
-    <span class="mono" style="color:var(--text-dim)"><?= icon('folder', 14) ?> /<?= e($path) ?></span>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+  <div class="files-toolbar">
+    <span class="mono crumb-path" style="color:var(--text-dim)"><?= icon('folder', 14) ?> /<?= e($path) ?></span>
+    <div class="tools">
       <form method="POST" action="/?p=server/files&id=<?= $id ?>&path=<?= urlencode($path) ?>&mkdir=1" style="display:flex;gap:8px">
         <input type="text" name="dirname" placeholder="New folder" required style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px">
         <button class="btn small" type="submit"><?= icon('plus', 14) ?> Folder</button>

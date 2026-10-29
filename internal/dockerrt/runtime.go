@@ -33,6 +33,11 @@ type ContainerSpec struct {
 	ContainerUID int      // UID di dalam container (untuk chown file, fase 3)
 	DiskMB       int64    // limit disk volume server (quota, SPEC §7.3)
 	ImageUser    string   // field User image config (UID/GID operasi file, SPEC §7.4)
+	// StartupDone: teks penanda server selesai start (egg config.startup.done,
+	// pola Pterodactyl wings). Kosong = running begitu proses hidup. Bila
+	// diisi, status tetap "starting" sampai teks ini muncul di output —
+	// selama itu Stop/Restart diblokir state guard panel.
+	StartupDone string
 }
 
 // FileOwner: UID/GID untuk operasi I/O file volume (SPEC §7.4). Sumber:

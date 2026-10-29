@@ -130,7 +130,7 @@ func WSHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 // terdaftar di node ini) — dikirim saat daemon hello.
 func ServersSyncPayload(db *sql.DB, nodeID int64) []byte {
 	rows, err := db.Query(`SELECT sv.uuid, e.docker_images, sv.memory_mb, sv.cpu_percent, e.config_stop, a.ip, a.port,
-		sv.disk_mb, COALESCE(e.startup_cmd, '')
+		sv.disk_mb, COALESCE(e.startup_cmd, ''), COALESCE(e.config_startup_done, '')
 		FROM servers sv
 		JOIN eggs e ON e.id = sv.egg_id
 		JOIN allocations a ON a.id = sv.allocation_id
@@ -151,6 +151,7 @@ func ServersSyncPayload(db *sql.DB, nodeID int64) []byte {
 		Port        int      `json:"port"`
 		DiskMB      int64    `json:"disk_mb"`
 		ImageUser   string   `json:"image_user"` // kosong → daemon resolve dari image config
+		StartupDone string   `json:"startup_done"`
 	}
 	type rawSyncServer struct {
 		syncServer
@@ -162,7 +163,7 @@ func ServersSyncPayload(db *sql.DB, nodeID int64) []byte {
 	rawServers := []rawSyncServer{}
 	for rows.Next() {
 		var s rawSyncServer
-		if err := rows.Scan(&s.UUID, &s.imagesJSON, &s.MemoryMB, &s.CPUPercent, &s.StopCommand, &s.ip, &s.port, &s.DiskMB, &s.startupCmd); err != nil {
+		if err := rows.Scan(&s.UUID, &s.imagesJSON, &s.MemoryMB, &s.CPUPercent, &s.StopCommand, &s.ip, &s.port, &s.DiskMB, &s.startupCmd, &s.StartupDone); err != nil {
 			continue
 		}
 		s.Port = s.port

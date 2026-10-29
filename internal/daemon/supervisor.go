@@ -213,6 +213,7 @@ func (s *Supervisor) HandleFrame(f Frame) {
 				Port        int      `json:"port"`
 				DiskMB      int64    `json:"disk_mb"`
 				ImageUser   string   `json:"image_user"`
+				StartupDone string   `json:"startup_done"`
 			} `json:"servers"`
 		}
 		if err := unmarshal(f.Payload, &p); err != nil {
@@ -222,17 +223,18 @@ func (s *Supervisor) HandleFrame(f Frame) {
 		specs := make(map[string]dockerrt.ContainerSpec, len(p.Servers))
 		for _, sv := range p.Servers {
 			spec := dockerrt.ContainerSpec{
-				Ref:        sv.UUID,
-				Image:      sv.Image,
-				Cmd:        sv.Cmd,
-				Env:        sv.Env,
-				MemoryMB:   sv.MemoryMB,
-				CPUPercent: sv.CPUPercent,
-				StopSignal: stopCommandToSignal(sv.StopCommand),
-				BindPort:   sv.Port,
-				HostPath:   s.volumeFor(sv.UUID),
-				DiskMB:     sv.DiskMB,
-				ImageUser:  sv.ImageUser,
+				Ref:         sv.UUID,
+				Image:       sv.Image,
+				Cmd:         sv.Cmd,
+				Env:         sv.Env,
+				MemoryMB:    sv.MemoryMB,
+				CPUPercent:  sv.CPUPercent,
+				StopSignal:  stopCommandToSignal(sv.StopCommand),
+				BindPort:    sv.Port,
+				HostPath:    s.volumeFor(sv.UUID),
+				DiskMB:      sv.DiskMB,
+				ImageUser:   sv.ImageUser,
+				StartupDone: sv.StartupDone,
 			}
 			// Resolve image user jika kosong.
 			if spec.ImageUser == "" {
@@ -375,7 +377,15 @@ func (s *Supervisor) Power(uuid string, action PowerAction) error {
 			s.reportState(uuid, dockerrt.StateOffline)
 			return err
 		}
-		s.reportState(uuid, dockerrt.StateRunning)
+		// Status "running" TIDAK dilaporkan di sini: runtime yang
+		// melaporkannya lewat event — ProcessRuntime saat teks
+		// startup-done muncul di output (atau langsung bila egg tidak
+		// punya teks done), Docker saat container start, FakeRuntime
+		// tidak melapor event sehingga supervisor melaporkannya di bawah
+		// bila spec tidak punya teks done.
+		if st.spec.StartupDone == "" {
+			s.reportState(uuid, dockerrt.StateRunning)
+		}
 		return nil
 
 	case PowerStop:
@@ -393,7 +403,11 @@ func (s *Supervisor) Power(uuid string, action PowerAction) error {
 			s.reportState(uuid, dockerrt.StateOffline)
 			return err
 		}
-		s.reportState(uuid, dockerrt.StateRunning)
+		// Sama seperti PowerStart: status running datang dari event
+		// runtime (teks startup-done), bukan dari sini.
+		if st.spec.StartupDone == "" {
+			s.reportState(uuid, dockerrt.StateRunning)
+		}
 		return nil
 
 	case PowerKill:

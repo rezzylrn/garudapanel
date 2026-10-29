@@ -27,13 +27,32 @@ $st = $s['status'] ?? 'offline';
 </div>
 <div id="terminal"></div>
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@5.3.0/lib/xterm-addon-fit.min.js"></script>
 <script>
 (function() {
   const term = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: '#000000' } });
   term.open(document.getElementById('terminal'));
+  // FitAddon (pola Pterodactyl Console.tsx): terminal menyesuaikan lebar
+  // container — tanpa ini, xterm 80 kolom default terpotong / menggeser
+  // halaman di layar mobile. Fallback: tetap jalan tanpa fit bila CDN gagal.
+  let fitAddon = null;
+  try {
+    const FA = window.FitAddon && (window.FitAddon.FitAddon || window.FitAddon);
+    if (FA) { fitAddon = new FA(); term.loadAddon(fitAddon); }
+  } catch (e) { fitAddon = null; }
   const statusEl = document.getElementById('conn-status');
   const ws = new WebSocket(`<?= $wsProto ?>//<?= e(preg_replace('#^https?://#', '', $wsBase)) ?>/api/servers/<?= $id ?>/ws`);
-  ws.onopen = () => { statusEl.textContent = 'Authenticating…'; ws.send(JSON.stringify({ t: 'auth', token: <?= json_encode($wsToken) ?> })); };
+  const sendResize = () => {
+    if (fitAddon) { try { fitAddon.fit(); } catch (e) {} }
+    if (ws.readyState === 1 && term.cols && term.rows) {
+      ws.send(JSON.stringify({ t: 'resize', cols: term.cols, rows: term.rows }));
+    }
+  };
+  if (fitAddon) {
+    requestAnimationFrame(sendResize);
+    window.addEventListener('resize', sendResize);
+  }
+  ws.onopen = () => { statusEl.textContent = 'Authenticating…'; ws.send(JSON.stringify({ t: 'auth', token: <?= json_encode($wsToken) ?> })); sendResize(); };
   ws.onmessage = (ev) => {
     try {
       const m = JSON.parse(ev.data);

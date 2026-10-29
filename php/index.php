@@ -46,6 +46,18 @@ if (!isset($_SESSION['gp_validated'])) {
     $_SESSION['gp_validated'] = time();
 }
 
+// JSON status endpoint untuk polling power-state di halaman server
+// (dipakai JS konfirmasi power action; token sesi tidak pernah ke browser
+// selain lewat endpoint ini).
+if ($page === 'server/status') {
+    $id = (int)($_GET['id'] ?? 0);
+    $r = $id > 0 ? gp_api('GET', "/api/servers/$id", null, gp_token()) : ['ok' => false];
+    header('Content-Type: application/json');
+    if (!$r['ok']) { http_response_code(404); echo json_encode(['ok' => false]); exit; }
+    echo json_encode(['ok' => true, 'status' => $r['data']['status'] ?? 'offline']);
+    exit;
+}
+
 // Route table — one file per page, no page crams multiple sections
 $routes = [
     'dashboard'       => 'pages/dashboard.php',
