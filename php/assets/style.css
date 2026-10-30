@@ -1,37 +1,38 @@
-/* GarudaPanel — design system v2
-   Product-first: one accent, one gray family, spacing tokens,
-   icon-first navigation, fully responsive. No gradients, no glow. */
+/* GarudaPanel — design system v3
+   Palet mengikuti Pterodactyl: gray HSL biru-abu (tailwind config upstream),
+   hitam #131a20 untuk bar/brand, card neutral-700 di atas bg neutral-900,
+   aksen tailwind blue, tanpa gradien/glow. */
 
 :root {
-  /* Color — blue accent, slate surfaces, semantic status colors */
-  --bg: #0a0e17;
-  --bg-soft: #0d1320;
-  --surface: #121a2b;
-  --surface-hover: #182238;
-  --border: #223050;
-  --border-soft: #1a2540;
-  --text: #e8edf7;
-  --text-dim: #94a2bd;
-  --text-mute: #5f6f8d;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --accent-text: #6ea8fe;
-  --accent-dim: rgba(59, 130, 246, 0.14);
-  --ok: #34d399;
-  --ok-dim: rgba(52, 211, 153, 0.12);
-  --danger: #f87171;
+  /* Color — skala gray Pterodactyl (hsl): 900 bg, 700 card, 400/300 teks */
+  --bg: #1f2933;            /* neutral-900 hsl(210,24%,16%) */
+  --bg-soft: #131a20;       /* pterodactyl "black" — sidebar & topbar */
+  --surface: #3d4a59;       /* neutral-700 hsl(209,18%,30%) — card */
+  --surface-hover: #47566a; /* antara 700 dan 600 */
+  --border: #4b5866;        /* pembatas samar di atas card terang */
+  --border-soft: #323e4c;   /* pembatas di atas bg */
+  --text: #e6eaf0;          /* neutral-100 */
+  --text-dim: #9aa7b5;      /* neutral-300 */
+  --text-mute: #6f7d8c;     /* neutral-400/500 */
+  --accent: #3b82f6;        /* tailwind blue-500 (primary Pterodactyl) */
+  --accent-hover: #2563eb;  /* blue-600 — latar tombol utama */
+  --accent-text: #60a5fa;   /* blue-400 — link/ikon */
+  --accent-dim: rgba(59, 130, 246, 0.16);
+  --ok: #4ade80;            /* green-400 */
+  --ok-dim: rgba(74, 222, 128, 0.12);
+  --danger: #f87171;        /* red-400 */
   --danger-dim: rgba(248, 113, 113, 0.12);
-  --warn: #fbbf24;
-  --warn-dim: rgba(251, 191, 36, 0.12);
-  --info: #6ea8fe;
-  --info-dim: rgba(110, 168, 254, 0.12);
+  --warn: #facc15;          /* yellow-400 */
+  --warn-dim: rgba(250, 204, 21, 0.12);
+  --info: #60a5fa;
+  --info-dim: rgba(96, 165, 250, 0.12);
 
   /* Spacing scale (4px base) */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
   --s5: 24px; --s6: 32px; --s7: 48px;
 
-  /* Radius */
-  --r-sm: 6px; --r-md: 8px; --r-lg: 10px;
+  /* Radius — Pterodactyl: rounded 4px, rounded-lg 8px */
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px;
 
   /* Type */
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -99,8 +100,8 @@ button, input, select, textarea { font: inherit; }
   white-space: nowrap;
 }
 .nav a svg { flex-shrink: 0; opacity: 0.85; }
-.nav a:hover { background: var(--surface); color: var(--text); }
-.nav a.active { background: var(--surface); color: var(--text); font-weight: 600; }
+.nav a:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.nav a.active { background: rgba(255, 255, 255, 0.08); color: var(--text); font-weight: 600; }
 .nav a.active svg { color: var(--accent); opacity: 1; }
 .nav .section {
   font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em;
@@ -160,12 +161,13 @@ button, input, select, textarea { font: inherit; }
 .stat .value.green { color: var(--ok); }
 .stat .sub { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
 
-/* ============ Cards & sections (no cards inside cards) ============ */
+/* ============ Cards & sections (Pterodactyl ContentBox: terang + shadow, tanpa border tebal) ============ */
 .card {
   background: var(--surface);
   border: 1px solid var(--border-soft);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   padding: var(--s4);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
 }
 .card + .card { margin-top: var(--s4); }
 .card h3 {
@@ -217,8 +219,8 @@ tbody tr:hover td { background: var(--surface-hover); }
 }
 .btn:hover { background: var(--surface-hover); border-color: var(--text-mute); }
 .btn:active { transform: scale(0.98); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.primary { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+.btn.primary:hover { background: var(--accent); border-color: var(--accent); }
 .btn.danger { border-color: var(--danger); color: var(--danger); }
 .btn.danger:hover { background: var(--danger-dim); }
 .btn.small { padding: 6px var(--s3); font-size: 12px; gap: 5px; }
@@ -349,7 +351,7 @@ tbody tr:hover td { background: var(--surface-hover); }
   gap: var(--s3); margin-bottom: var(--s3);
 }
 .stat.mini { padding: var(--s3) var(--s4); }
-.stat.mini .value { font-size: 19px; }
+.stat.mini .value { font-size: 17px; font-family: var(--font); font-weight: 600; }
 .stat.mini .label svg { width: 14px; height: 14px; }
 .meter {
   display: block; height: 4px; border-radius: 2px;
@@ -391,6 +393,41 @@ tbody tr:hover td { background: var(--surface-hover); }
   tab-size: 2;
 }
 .editor:focus { outline: none; border-color: var(--accent); }
+
+/* ============ Server rows (pola ServerRow Pterodactyl: dot + nama + meta, tanpa label kolom) ============ */
+.server-rows { display: flex; flex-direction: column; }
+.server-row {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s2); text-decoration: none; color: inherit;
+  border-bottom: 1px solid var(--border-soft);
+  transition: background var(--t-out) var(--ease);
+  min-width: 0;
+}
+.server-row:last-child { border-bottom: none; }
+.server-row:hover { background: var(--surface-hover); }
+.server-row .row-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--text-mute); }
+.server-row .row-dot.on { background: var(--ok); }
+.server-row .row-dot.warn { background: var(--warn); }
+.server-row .row-main { flex: 1; min-width: 0; }
+.server-row .row-name {
+  font-weight: 600; font-size: 14px; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.server-row .row-sub {
+  font-size: 12px; color: var(--text-dim); line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.server-row .row-sub .mono { font-size: 11.5px; color: var(--text-mute); }
+.server-row .row-side { display: flex; align-items: center; gap: var(--s2); flex-shrink: 0; }
+.server-row .row-side svg { color: var(--text-mute); }
+
+/* ============ Terminal wrap: xterm tidak boleh melebarkan halaman ============ */
+.terminal-wrap {
+  width: 100%; min-width: 0; overflow: hidden;
+  background: #000; border-radius: var(--r-md);
+}
+.terminal-wrap #terminal { width: 100%; max-width: 100%; }
+.terminal-wrap .xterm-viewport { overflow-y: auto; }
 
 /* ============ Files toolbar ============ */
 .files-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
@@ -456,7 +493,7 @@ tbody tr:hover td { background: var(--surface-hover); }
   .stats { grid-template-columns: 1fr 1fr; gap: var(--s2); }
   .stat .value { font-size: 22px; }
   .stat-strip { grid-template-columns: 1fr 1fr; }
-  .stat.mini .value { font-size: 17px; }
+  .stat.mini .value { font-size: 15px; }
   .page-actions .btn { flex: 1; justify-content: center; }
   .form-grid { grid-template-columns: 1fr; }
   .btn { padding: 9px var(--s3); }

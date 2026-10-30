@@ -51,3 +51,33 @@ Status akhir: **JS BERHASIL LAUNCH via tombol Start, console live.** Commit 08e9
 
 ## Yang harus rezz lakukan untuk E2E Docker penuh
 Jalankan installer di PC Pop!_OS (punya Docker) → daemon join (pakai Docker runtime otomatis) → buat server pakai egg ini → Start → console harus keluar "running".
+
+## 10. Console stats, lifecycle lines, file editor (2026-10-30, commit 5a06c37)
+
+Perintah rezz (SS startup page): variabel masih belum oke; console harus bersih
+(hanya output script + start/restart/stop); tambah statistik server mirip Pterodactyl;
+lalu interupsi: "kasih edit file juga di file managernya".
+
+- **Startup variables**: tabel diganti `.var-list` (grid nama 250px + kontrol) —
+  nama tidak terpotong lagi di mobile; input + Save lega. 5 var-item terverifikasi.
+- **Console bersih**: heartbeat berasal dari script tes (`setInterval` tiap 5 detik),
+  BUKAN dari panel — script diganti diam (hanya `starting...` + `running`).
+  Daemon kini mencetak baris lifecycle `[GarudaPanel] Server started./stopped./
+  restarted.` ke ring buffer + live (ikut replay). Verifikasi WS: replay setelah
+  stop mengandung kedua baris; TIDAK ada heartbeat.
+- **Stats strip** (pola ServerDetailsBlock Pterodactyl): Address (IP:port), Uptime,
+  CPU Load, Memory (+bar), Disk (+bar, via endpoint `server/usage`), Network
+  (in/out). Frame stat WS tiap 2 detik kini membawa `uptime_seconds`, `state`,
+  dan CPU% riil (delta jiffies /proc vs baseline; panggilan pertama 0).
+  Verifikasi: uptime 11 dtk, mem 77,8/512 MB, state running.
+- **File editor**: tombol Edit per file + New file; editor textarea mono 55vh,
+  guard 512 KB/binary/1 MB; save via PUT mentah. **Delete diperbaiki**: handler
+  delete tadinya di dalam blok POST padahal link-nya GET — tidak pernah jalan.
+- **BUG KRITIS upload 0 byte**: `file:write-begin` di-dispatch `go` sementara
+  chunk sinkron → chunk kalah balapan, file tertulis 0 byte (curl/PHP selalu
+  gagal, urllib kadang lolos). Fix: write-begin sinkron; tes regresi
+  `TestFileWriteBeginChunkRace` 20x via HandleFrame; `go test -race` lolos
+  (termasuk perbaikan lock `MemFS.resolveTarget`).
+- E2E penuh `console-verify.py`: ALL PASS. Server dibiarkan RUNNING.
+- Satu false alarm saat debug: 2 sesi WS pasca-stop gagal karena BUG SCRIPT TES
+  (token diambil dari key `data` yang tidak ada → token null → 401). Bukan bug panel.

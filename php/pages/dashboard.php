@@ -22,7 +22,7 @@ require __DIR__ . '/../partials/header.php';
     <p>Welcome back, <?= e(gp_user()['username'] ?? '') ?></p>
   </div>
   <div class="page-actions">
-    <?php if (gp_is_admin()): ?><a class="btn primary" href="/?p=admin/servers"><?= icon('plus', 15) ?> New server</a><?php endif; ?>
+    <?php if (gp_is_admin()): ?><a class="btn primary" href="/?p=admin/servers/new"><?= icon('plus', 15) ?> New server</a><?php endif; ?>
   </div>
 </div>
 
@@ -46,19 +46,19 @@ require __DIR__ . '/../partials/header.php';
   <?php if (empty($serverList)): ?>
   <div class="empty"><?= icon('server', 32) ?><p>No servers yet.</p></div>
   <?php else: ?>
-  <div class="table-wrap"><table>
-    <thead><tr><th>Name</th><th>Status</th><th>Node</th><th></th></tr></thead>
-    <tbody>
+  <div class="server-rows">
     <?php foreach ($serverList as $s): ?>
-      <tr>
-        <td><span class="cell-main"><?= e($s['name']) ?></span><br><span class="mono cell-sub"><?= e($s['uuid'] ?? '') ?></span></td>
-        <td><?= gp_status_badge($s['status'] ?? 'offline') ?></td>
-        <td><?= e($s['node_name'] ?? '-') ?></td>
-        <td><div class="row-actions"><a class="act-btn" title="Manage" href="/?p=server/console&id=<?= $s['id'] ?>"><?= icon('chevron', 16) ?></a></div></td>
-      </tr>
+      <?php $st = $s['status'] ?? 'offline'; ?>
+      <a class="server-row" href="/?p=server/console&id=<?= $s['id'] ?>">
+        <span class="row-dot <?= $st === 'running' ? 'on' : ($st === 'starting' || $st === 'stopping' ? 'warn' : '') ?>"></span>
+        <span class="row-main">
+          <span class="row-name"><?= e($s['name']) ?></span>
+          <span class="row-sub" style="display:block"><?= e($s['node_name'] ?? '-') ?> · <span class="mono"><?= e(substr($s['uuid'] ?? '', 0, 8)) ?></span></span>
+        </span>
+        <span class="row-side"><?= gp_status_badge($st) ?><?= icon('chevron', 16) ?></span>
+      </a>
     <?php endforeach; ?>
-    </tbody>
-  </table></div>
+  </div>
   <?php endif; ?>
 </div>
 

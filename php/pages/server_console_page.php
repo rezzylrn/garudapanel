@@ -56,7 +56,7 @@ $memLimitMB = (int)($s['memory_mb'] ?? 0);
   <span class="status-dot <?= $st === 'running' ? 'on' : 'off' ?>" id="conn-dot"></span>
   <span id="conn-status" class="status-line">Connecting…</span>
 </div>
-<div id="terminal"></div>
+<div class="terminal-wrap"><div id="terminal"></div></div>
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@5.3.0/lib/xterm-addon-fit.min.js"></script>
 <script>
@@ -138,8 +138,20 @@ $memLimitMB = (int)($s['memory_mb'] ?? 0);
     }
   };
   if (fitAddon) {
+    // fit() SEKALI di rAF tidak cukup di mobile: CSS xterm / font sering
+    // belum settle saat rAF pertama → kolom kehitung kebanyakan → terminal
+    // meluber ke kanan (teks terpotong di tepi layar). Refit di beberapa
+    // momen: load (stylesheet+font selesai), fonts.ready, timeout, dan
+    // ResizeObserver pada wrapper (rotasi, address bar, dsb).
     requestAnimationFrame(sendResize);
+    window.addEventListener('load', sendResize);
     window.addEventListener('resize', sendResize);
+    setTimeout(sendResize, 150);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(sendResize);
+    if (window.ResizeObserver) {
+      const wrap = document.querySelector('.terminal-wrap');
+      if (wrap) new ResizeObserver(function () { sendResize(); }).observe(wrap);
+    }
   }
   ws.onopen = () => { statusEl.textContent = 'Authenticating…'; ws.send(JSON.stringify({ t: 'auth', token: <?= json_encode($wsToken) ?> })); sendResize(); };
   ws.onmessage = (ev) => {

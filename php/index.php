@@ -68,19 +68,30 @@ if ($page === 'server/usage') {
     exit;
 }
 
+// JSON alokasi bebas per node untuk dropdown form New server.
+if ($page === 'admin/node-allocations') {
+    if (!gp_is_admin()) { http_response_code(403); echo json_encode(['ok' => false]); exit; }
+    $nid = (int)($_GET['node_id'] ?? 0);
+    $r = $nid > 0 ? gp_api('GET', "/api/admin/allocations?node_id=$nid", null, gp_token()) : ['ok' => false, 'data' => []];
+    header('Content-Type: application/json');
+    echo json_encode(['ok' => (bool)($r['ok'] ?? false), 'data' => $r['data'] ?? []]);
+    exit;
+}
+
 // Route table — one file per page, no page crams multiple sections
 $routes = [
-    'dashboard'       => 'pages/dashboard.php',
-    'servers'         => 'pages/servers.php',
-    'server/console'  => 'pages/server_console_page.php',
-    'server/files'    => 'pages/server_files_page.php',
-    'server/startup'  => 'pages/server_startup_page.php',
-    'admin/nodes'     => 'pages/admin/nodes.php',
-    'admin/servers'   => 'pages/admin/servers.php',
-    'admin/nests'     => 'pages/admin/nests.php',
-    'admin/eggs'      => 'pages/admin/eggs.php',
-    'admin/users'     => 'pages/admin/users.php',
-    'admin/locations' => 'pages/admin/locations.php',
+    'dashboard'         => 'pages/dashboard.php',
+    'servers'           => 'pages/servers.php',
+    'server/console'    => 'pages/server_console_page.php',
+    'server/files'      => 'pages/server_files_page.php',
+    'server/startup'    => 'pages/server_startup_page.php',
+    'admin/nodes'       => 'pages/admin/nodes.php',
+    'admin/servers'     => 'pages/admin/servers.php',
+    'admin/servers/new' => 'pages/admin/servers_new.php',
+    'admin/nests'       => 'pages/admin/nests.php',
+    'admin/eggs'        => 'pages/admin/eggs.php',
+    'admin/users'       => 'pages/admin/users.php',
+    'admin/locations'   => 'pages/admin/locations.php',
 ];
 
 // Legacy ?p=server&id=N&tab=X redirects to the dedicated page
