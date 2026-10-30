@@ -185,6 +185,9 @@ function gp_server_head(array $s, int $id, string $activeTab): void {
         status = next;
         render();
       }
+      // Hook untuk halaman console: frame stat WS juga membawa status live.
+      window.__gpSetStatus = setStatus;
+      window.__gpGetStatus = function () { return status; };
 
       function pollStatus(left) {
         if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }

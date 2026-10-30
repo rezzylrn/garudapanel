@@ -60,6 +60,12 @@ func norm(p string) (string, error) {
 // resolveTarget: path user → path bersih resolved (symlink diikuti;
 // link yang menunjuk keluar volume ditolak dengan ErrOutsideVolume).
 func (m *MemFS) resolveTarget(p string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.resolveTargetLocked(p)
+}
+
+func (m *MemFS) resolveTargetLocked(p string) (string, error) {
 	n, err := norm(p)
 	if err != nil {
 		return "", err
@@ -88,7 +94,7 @@ func (m *MemFS) resolveTarget(p string) (string, error) {
 			if rest != "" {
 				rest = "/" + rest
 			}
-			return m.resolveTarget(ln + rest)
+			return m.resolveTargetLocked(ln + rest)
 		}
 	}
 	return n, nil

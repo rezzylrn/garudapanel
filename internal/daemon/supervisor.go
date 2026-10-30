@@ -273,11 +273,15 @@ func (s *Supervisor) HandleFrame(f Frame) {
 		}(f.Payload)
 
 	case f.Ch == "rpc" && f.Type == "file:write-begin":
-		go func(payload []byte) {
-			if err := s.handleWriteBegin(payload); err != nil {
-				log.Printf("file write-begin: %v", err)
-			}
-		}(f.Payload)
+		// write-begin HARUS sinkron di read loop, sama seperti chunk:
+		// begin yang di-goroutine bisa kalah balapan dengan chunk yang
+		// datang tepat di belakangnya (panel kirim begin+chunk+end
+		// berurutan dalam satu flush) → chunk gagal "no active write
+		// session" dan file tertulis 0 byte. handleWriteBegin sendiri
+		// cepat (registrasi + spawn goroutine writer), tidak memblokir.
+		if err := s.handleWriteBegin(f.Payload); err != nil {
+			log.Printf("file write-begin: %v", err)
+		}
 	case f.Ch == "rpc" && f.Type == "file:write-chunk":
 		// chunk di pump langsung (backpressure blocking): TIDAK di goroutine
 		// terpisah, supaya urutan chunk terjaga. Bila pipe penuh, read loop
@@ -386,6 +390,7 @@ func (s *Supervisor) Power(uuid string, action PowerAction) error {
 		if st.spec.StartupDone == "" {
 			s.reportState(uuid, dockerrt.StateRunning)
 		}
+		s.consolePrint(uuid, "[GarudaPanel] Server started.")
 		return nil
 
 	case PowerStop:
@@ -395,6 +400,7 @@ func (s *Supervisor) Power(uuid string, action PowerAction) error {
 			return err
 		}
 		s.reportState(uuid, dockerrt.StateOffline)
+		s.consolePrint(uuid, "[GarudaPanel] Server stopped.")
 		return nil
 
 	case PowerRestart:
@@ -408,6 +414,7 @@ func (s *Supervisor) Power(uuid string, action PowerAction) error {
 		if st.spec.StartupDone == "" {
 			s.reportState(uuid, dockerrt.StateRunning)
 		}
+		s.consolePrint(uuid, "[GarudaPanel] Server restarted.")
 		return nil
 
 	case PowerKill:
@@ -416,6 +423,7 @@ func (s *Supervisor) Power(uuid string, action PowerAction) error {
 			return err
 		}
 		s.reportState(uuid, dockerrt.StateOffline)
+		s.consolePrint(uuid, "[GarudaPanel] Server stopped (forced).")
 		return nil
 	default:
 		return fmt.Errorf("unknown power action %q", action)
@@ -455,7 +463,17 @@ func (s *Supervisor) collectStats(ctx context.Context, uuid string) (StatsSnapsh
 		if err != nil {
 			return StatsSnapshot{}, err
 		}
-		out := StatsSnapshot(dSnap)
+		out := StatsSnapshot{
+			ServerUUID:   dSnap.ServerUUID,
+			CPUPercent:   dSnap.CPUPercent,
+			MemUsageMB:   dSnap.MemUsageMB,
+			MemLimitMB:   dSnap.MemLimitMB,
+			NetRxKB:      dSnap.NetRxKB,
+			NetTxKB:      dSnap.NetTxKB,
+			BlockReadMB:  dSnap.BlockReadMB,
+			BlockWriteMB: dSnap.BlockWriteMB,
+			UptimeSec:    dSnap.UptimeSec,
+		}
 		out.ServerUUID = uuid
 		return out, nil
 	}

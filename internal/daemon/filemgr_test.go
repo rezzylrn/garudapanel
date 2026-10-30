@@ -127,6 +127,33 @@ func TestFileWriteStreamingEndToEnd(t *testing.T) {
 	t.Fatal("file tidak tertulis via streaming write")
 }
 
+// TestFileWriteBeginChunkRace: regresi balapan write-begin (async) vs
+// write-chunk (sinkron) di HandleFrame. Begin+chunk+end dikirim berurutan
+// persis seperti panel (satu flush) — chunk TIDAK BOLEH gagal
+// "no active write session" dan file harus utuh, diulang 20x.
+func TestFileWriteBeginChunkRace(t *testing.T) {
+	sup, _, _, mem := newTestSupervisorFS(t)
+	registerForFiles(t, sup, "uuid-1", 100)
+
+	for i := 0; i < 20; i++ {
+		path := "race/file" + string(rune('a'+i)) + ".txt"
+		body := []byte("RACE-BODY")
+		sup.HandleFrame(Frame{Ch: "rpc", Type: "file:write-begin", Payload: []byte(`{"server_uuid":"uuid-1","path":"` + path + `"}`)})
+		sup.HandleFrame(Frame{Ch: "rpc", Type: "file:write-chunk", Payload: []byte(`{"server_uuid":"uuid-1","path":"` + path + `","d":"` + base64.StdEncoding.EncodeToString(body) + `"}`)})
+		sup.HandleFrame(Frame{Ch: "rpc", Type: "file:write-end", Payload: []byte(`{"req_id":"r1","server_uuid":"uuid-1","path":"` + path + `"}`)})
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			if data, ok := mem.Get(path); ok && string(data) == "RACE-BODY" {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("iterasi %d: file tidak tertulis utuh (race begin/chunk)", i)
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+}
+
 func TestFileReadStreamingEndToEnd(t *testing.T) {
 	sup, _, fc, mem := newTestSupervisorFS(t)
 	registerForFiles(t, sup, "uuid-1", 100)

@@ -58,6 +58,16 @@ if ($page === 'server/status') {
     exit;
 }
 
+// JSON disk usage untuk strip statistik halaman console.
+if ($page === 'server/usage') {
+    $id = (int)($_GET['id'] ?? 0);
+    $r = $id > 0 ? gp_api('GET', "/api/servers/$id/files/usage", null, gp_token()) : ['ok' => false];
+    header('Content-Type: application/json');
+    if (!$r['ok']) { http_response_code(404); echo json_encode(['ok' => false]); exit; }
+    echo json_encode(['ok' => true, 'used' => (int)($r['data']['used'] ?? 0), 'limit' => (int)($r['data']['limit'] ?? 0)]);
+    exit;
+}
+
 // Route table — one file per page, no page crams multiple sections
 $routes = [
     'dashboard'       => 'pages/dashboard.php',

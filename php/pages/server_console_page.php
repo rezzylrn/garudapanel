@@ -19,10 +19,41 @@ if ($wsBaseFile !== '') {
     $wsProto = (parse_url(GP_API_URL, PHP_URL_SCHEME) === 'https') ? 'wss:' : 'ws:';
 }
 $st = $s['status'] ?? 'offline';
+$addr = ($s['ip'] ?? '') !== '' ? e($s['ip']) . ':' . (int)($s['port'] ?? 0) : '—';
+$diskLimitMB = (int)($s['disk_mb'] ?? 0);
+$memLimitMB = (int)($s['memory_mb'] ?? 0);
 ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+<div class="stat-strip" aria-label="Server statistics">
+  <div class="stat mini">
+    <span class="label"><?= icon('nodes', 14) ?> Address</span>
+    <span class="value mono" id="st-address" style="font-size:14px"><?= $addr ?></span>
+  </div>
+  <div class="stat mini">
+    <span class="label"><?= icon('clock', 14) ?> Uptime</span>
+    <span class="value" id="st-uptime">—</span>
+  </div>
+  <div class="stat mini">
+    <span class="label"><?= icon('cpu', 14) ?> CPU Load</span>
+    <span class="value" id="st-cpu">—</span>
+  </div>
+  <div class="stat mini">
+    <span class="label"><?= icon('memory', 14) ?> Memory</span>
+    <span class="value" id="st-mem">—</span>
+    <span class="meter"><span id="st-mem-bar" style="width:0%"></span></span>
+  </div>
+  <div class="stat mini">
+    <span class="label"><?= icon('hdd', 14) ?> Disk</span>
+    <span class="value" id="st-disk">—</span>
+    <span class="meter"><span id="st-disk-bar" style="width:0%"></span></span>
+  </div>
+  <div class="stat mini">
+    <span class="label"><?= icon('network', 14) ?> Network</span>
+    <span class="value mono" id="st-net" style="font-size:13px">—</span>
+  </div>
+</div>
 <div class="console-bar">
-  <span class="status-dot <?= $st === 'running' ? 'on' : 'off' ?>"></span>
+  <span class="status-dot <?= $st === 'running' ? 'on' : 'off' ?>" id="conn-dot"></span>
   <span id="conn-status" class="status-line">Connecting…</span>
 </div>
 <div id="terminal"></div>
@@ -41,6 +72,64 @@ $st = $s['status'] ?? 'offline';
     if (FA) { fitAddon = new FA(); term.loadAddon(fitAddon); }
   } catch (e) { fitAddon = null; }
   const statusEl = document.getElementById('conn-status');
+  const dotEl = document.getElementById('conn-dot');
+
+  // --- Statistik live (pola ServerDetailsBlock Pterodactyl) ---
+  const memLimitMB = <?= $memLimitMB ?>;
+  const diskLimitMB = <?= $diskLimitMB ?>;
+  function fmtMB(mb) {
+    if (mb == null || isNaN(mb)) return '—';
+    return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : Math.round(mb) + ' MB';
+  }
+  function fmtKB(kb) {
+    if (kb == null || isNaN(kb)) return '—';
+    return kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB';
+  }
+  function fmtUptime(sec) {
+    sec = Math.floor(sec || 0);
+    if (sec <= 0) return '—';
+    const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600),
+          m = Math.floor(sec % 3600 / 60), s = sec % 60;
+    if (d > 0) return d + 'd ' + h + 'h';
+    if (h > 0) return h + 'h ' + m + 'm';
+    if (m > 0) return m + 'm ' + s + 's';
+    return s + 's';
+  }
+  function setBar(el, pct) {
+    el.style.width = Math.max(0, Math.min(100, pct || 0)) + '%';
+  }
+  function applyStats(d) {
+    if (!d) return;
+    document.getElementById('st-uptime').textContent = fmtUptime(d.uptime_seconds);
+    document.getElementById('st-cpu').textContent =
+      (d.cpu_percent == null ? '—' : d.cpu_percent.toFixed(1) + '%');
+    const memUsed = d.mem_used_mb || 0, memLimit = d.mem_limit_mb || memLimitMB;
+    document.getElementById('st-mem').textContent =
+      fmtMB(memUsed) + (memLimit ? ' / ' + fmtMB(memLimit) : '');
+    setBar(document.getElementById('st-mem-bar'), memLimit ? memUsed / memLimit * 100 : 0);
+    const rx = d.net_rx_kb || 0, tx = d.net_tx_kb || 0;
+    document.getElementById('st-net').textContent =
+      (rx <= 0 && tx <= 0) ? '—' : '↓ ' + fmtKB(rx) + ' · ↑ ' + fmtKB(tx);
+    if (d.state) {
+      dotEl.className = 'status-dot ' + (d.state === 'running' ? 'on' : 'off');
+      if (window.__gpSetStatus) window.__gpSetStatus(d.state);
+    }
+  }
+  function refreshDisk() {
+    fetch('/?p=server/usage&id=<?= $id ?>', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) return;
+        const usedMB = (d.used || 0) / 1048576, limitMB = (d.limit || 0) / 1048576 || diskLimitMB;
+        document.getElementById('st-disk').textContent =
+          fmtMB(usedMB) + (limitMB ? ' / ' + fmtMB(limitMB) : '');
+        setBar(document.getElementById('st-disk-bar'), limitMB ? usedMB / limitMB * 100 : 0);
+      })
+      .catch(function () {});
+  }
+  refreshDisk();
+  setInterval(refreshDisk, 30000);
+
   const ws = new WebSocket(`<?= $wsProto ?>//<?= e(preg_replace('#^https?://#', '', $wsBase)) ?>/api/servers/<?= $id ?>/ws`);
   const sendResize = () => {
     if (fitAddon) { try { fitAddon.fit(); } catch (e) {} }
@@ -57,6 +146,7 @@ $st = $s['status'] ?? 'offline';
     try {
       const m = JSON.parse(ev.data);
       if (m.t === 'out') term.write(m.d);
+      else if (m.t === 'stat') applyStats(m.d);
       else if (m.t === 'status') statusEl.textContent = m.d?.s || m.s || 'Connected';
     } catch (e) { term.write(ev.data); }
   };

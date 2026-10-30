@@ -98,6 +98,7 @@ type StatsSnapshot struct {
 	NetTxKB      float64 `json:"net_tx_kb"`
 	BlockReadMB  float64 `json:"block_read_mb"`
 	BlockWriteMB float64 `json:"block_write_mb"`
+	UptimeSec    int64   `json:"uptime_seconds"`
 }
 
 // StateEvent: perubahan status satu container (dari event Docker atau polling).

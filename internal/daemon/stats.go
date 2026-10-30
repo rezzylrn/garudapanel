@@ -18,6 +18,8 @@ type StatsSnapshot struct {
 	NetTxKB      float64 `json:"net_tx_kb"`
 	BlockReadMB  float64 `json:"block_read_mb"`
 	BlockWriteMB float64 `json:"block_write_mb"`
+	UptimeSec    int64   `json:"uptime_seconds"`
+	State        string  `json:"state"`
 }
 
 // startStats: mulai loop stats untuk uuid. Goroutine berhenti saat WS
@@ -49,6 +51,7 @@ func (s *Supervisor) startStats(uuid string) {
 				if err != nil {
 					continue // container mati / runtime error: coba lagi nanti
 				}
+				snap.State = s.Status(uuid)
 				if err := s.sendFrame(Frame{Ch: "stats", Type: "stat", Payload: mustJSON(snap)}); err != nil {
 					log.Printf("stats send %s: %v", uuid, err)
 				}

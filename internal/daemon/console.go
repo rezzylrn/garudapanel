@@ -230,6 +230,16 @@ func (s *Supervisor) sendConsole(uuid, typ string, payload any) error {
 	return send(Frame{Ch: "console:" + uuid, Type: typ, Payload: mustJSON(payload)})
 }
 
+// consolePrint: tulis satu baris asal daemon (bukan output proses) ke console
+// server — masuk ring buffer (ikut replay) + terkirim live ke semua sesi.
+// Dipakai baris lifecycle start/restart/stop, supaya console hanya berisi
+// output script + event lifecycle. Tidak melewati broadcast runtime sehingga
+// tidak memengaruhi deteksi teks startup-done.
+func (s *Supervisor) consolePrint(uuid, line string) {
+	w := &consoleWriter{sup: s, uuid: uuid, ring: s.ringFor(uuid)}
+	_, _ = w.Write([]byte(line + "\n"))
+}
+
 // consoleReplay: kirim ulang isi ring buffer uuid ke panel (replay).
 func (s *Supervisor) consoleReplay(uuid string) {
 	r := s.ringFor(uuid)

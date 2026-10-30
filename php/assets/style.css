@@ -343,6 +343,55 @@ tbody tr:hover td { background: var(--surface-hover); }
 .toast.ok { border-left-color: var(--ok); }
 .toast.out { opacity: 0; }
 
+/* ============ Stats strip (console, pola ServerDetailsBlock Pterodactyl) ============ */
+.stat-strip {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: var(--s3); margin-bottom: var(--s3);
+}
+.stat.mini { padding: var(--s3) var(--s4); }
+.stat.mini .value { font-size: 19px; }
+.stat.mini .label svg { width: 14px; height: 14px; }
+.meter {
+  display: block; height: 4px; border-radius: 2px;
+  background: var(--border-soft); margin-top: 6px; overflow: hidden;
+}
+.meter span { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width 400ms var(--ease); }
+
+/* ============ Startup variables (bukan tabel: nama tidak terpotong) ============ */
+.var-list { display: flex; flex-direction: column; }
+.var-item {
+  display: grid; grid-template-columns: minmax(0, 250px) 1fr;
+  gap: var(--s4); align-items: start;
+  padding: var(--s4) 0; border-bottom: 1px solid var(--border-soft);
+}
+.var-item:last-child { border-bottom: none; padding-bottom: 0; }
+.var-item:first-child { padding-top: 0; }
+.var-name { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.var-desc { display: block; color: var(--text-dim); font-size: 12.5px; margin-top: 2px; overflow-wrap: anywhere; }
+.var-control form { display: flex; gap: var(--s2); }
+.var-control input[type="text"] {
+  flex: 1; min-width: 0; padding: 8px var(--s3); border-radius: var(--r-md);
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-size: 13px; font-family: var(--font);
+}
+.var-control input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.var-value { font-size: 13px; color: var(--text-dim); overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .var-item { grid-template-columns: 1fr; gap: var(--s2); }
+  .stat-strip { grid-template-columns: repeat(3, 1fr); gap: var(--s2); }
+}
+
+/* ============ File editor ============ */
+.editor-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s3); flex-wrap: wrap; }
+.editor {
+  width: 100%; min-height: 55vh; resize: vertical;
+  padding: var(--s4); border-radius: var(--r-md);
+  border: 1px solid var(--border); background: #000;
+  color: #dbe4f0; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  tab-size: 2;
+}
+.editor:focus { outline: none; border-color: var(--accent); }
+
 /* ============ Files toolbar ============ */
 .files-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
 .files-toolbar .crumb-path { overflow-wrap: anywhere; min-width: 0; }
@@ -406,6 +455,8 @@ tbody tr:hover td { background: var(--surface-hover); }
 @media (max-width: 520px) {
   .stats { grid-template-columns: 1fr 1fr; gap: var(--s2); }
   .stat .value { font-size: 22px; }
+  .stat-strip { grid-template-columns: 1fr 1fr; }
+  .stat.mini .value { font-size: 17px; }
   .page-actions .btn { flex: 1; justify-content: center; }
   .form-grid { grid-template-columns: 1fr; }
   .btn { padding: 9px var(--s3); }

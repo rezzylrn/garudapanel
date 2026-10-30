@@ -52,9 +52,14 @@ type procState struct {
 	// runningReported: teks StartupDone sudah terlihat di output (atau
 	// StartupDone kosong sehingga running langsung saat Start).
 	runningReported bool
-	mu              sync.Mutex // lindungi subs + replay
-	subs            map[*procSub]struct{}
-	replay          []byte
+	// startedAt: kapan proses terakhir di-Start (untuk uptime).
+	// lastJiffies/lastWall: baseline CPU% antar panggilan StatsOnce.
+	startedAt   time.Time
+	lastJiffies uint64
+	lastWall    time.Time
+	mu          sync.Mutex // lindungi subs + replay
+	subs        map[*procSub]struct{}
+	replay      []byte
 }
 
 // procSub: satu subscriber output (sesi ExecAttach).
@@ -147,6 +152,9 @@ func (r *processRT) Start(ctx context.Context, ref string) error {
 	st.exited = false
 	st.done = make(chan struct{})
 	st.runningReported = false
+	st.startedAt = time.Now()
+	st.lastJiffies = 0
+	st.lastWall = time.Time{}
 	st.mu.Unlock()
 
 	if err := cmd.Start(); err != nil {
@@ -426,20 +434,39 @@ func (r *processRT) StatsOnce(ctx context.Context, ref string) (StatsSnapshot, e
 	cmd := st.cmd
 	running := cmd != nil && !st.exited
 	memLimit := st.spec.MemoryMB
+	startedAt := st.startedAt
 	st.mu.Unlock()
 	if !running || cmd.Process == nil {
 		return snap, nil
 	}
 	snap.MemLimitMB = float64(memLimit)
+	if !startedAt.IsZero() {
+		snap.UptimeSec = int64(time.Since(startedAt).Seconds())
+	}
 	pid := cmd.Process.Pid
 	if rssKB, err := procRSSKB(pid); err == nil {
 		snap.MemUsageMB = float64(rssKB) / 1024
 	}
 	if utime, stime, err := procCPUJiffies(pid); err == nil {
-		// CPU% kasar: total jiffies sejak start vs wall clock tidak dilacak;
-		// laporkan 0 bila tidak ada baseline — panel memakai memori saja.
-		_ = utime
-		_ = stime
+		// CPU%: delta jiffies (utime+stime, HZ=100) terhadap baseline
+		// panggilan sebelumnya. Panggilan pertama hanya menyimpan
+		// baseline dan melaporkan 0.
+		total := utime + stime
+		now := time.Now()
+		st.mu.Lock()
+		if !st.lastWall.IsZero() && now.After(st.lastWall) {
+			elapsed := now.Sub(st.lastWall).Seconds()
+			if elapsed > 0 && total >= st.lastJiffies {
+				pct := float64(total-st.lastJiffies) / 100 / elapsed * 100
+				if pct < 0 {
+					pct = 0
+				}
+				snap.CPUPercent = pct
+			}
+		}
+		st.lastJiffies = total
+		st.lastWall = now
+		st.mu.Unlock()
 	}
 	return snap, nil
 }
