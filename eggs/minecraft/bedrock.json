@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "Bedrock",
+  "author": "GarudaPanel",
+  "description": "Minecraft Bedrock dedicated server (Windows/Linux/mobile bisa join).",
+  "features": null,
+  "docker_images": {
+    "Bedrock": "ghcr.io/parkervcp/yolks:debian"
+  },
+  "file_denylist": [],
+  "startup": "./bedrock_server",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "Server started.",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\n# Unduh Bedrock server zip (URL resmi berubah tiap rilis; sesuaikan versi).\ncurl -fsSL -o bedrock.zip \"https://minecraft.azureedge.net/bin-linux/bedrock-server-${BEDROCK_VERSION}.zip\"\nunzip -o bedrock.zip && rm bedrock.zip\nchmod +x bedrock_server\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Bedrock Version",
+      "description": "Versi Bedrock server.",
+      "env_variable": "BEDROCK_VERSION",
+      "default_value": "1.21.50",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

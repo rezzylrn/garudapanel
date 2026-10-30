@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "Discord.js Bot",
+  "author": "GarudaPanel",
+  "description": "Bot Discord (discord.js) \u2014 jalanin pakai npm start.",
+  "features": null,
+  "docker_images": {
+    "Node.js 20": "ghcr.io/parkervcp/yolks:nodejs_20",
+    "Node.js 22": "ghcr.io/parkervcp/yolks:nodejs_22"
+  },
+  "file_denylist": [],
+  "startup": "{{CMD_RUN}}",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\nif [ -n \"${GIT_ADDRESS}\" ]; then git clone --branch \"${BRANCH:-main}\" \"${GIT_ADDRESS}\" . 2>/dev/null || git pull; fi\n[ -f package.json ] && npm install --no-audit --no-fund\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Run Command",
+      "description": "Perintah jalanin bot.",
+      "env_variable": "CMD_RUN",
+      "default_value": "npm start",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    },
+    {
+      "name": "Bot Token",
+      "description": "Token bot Discord.",
+      "env_variable": "BOT_TOKEN",
+      "default_value": "",
+      "user_viewable": false,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    },
+    {
+      "name": "Git Address",
+      "description": "Repo git bot.",
+      "env_variable": "GIT_ADDRESS",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    },
+    {
+      "name": "Branch",
+      "description": "Branch git.",
+      "env_variable": "BRANCH",
+      "default_value": "main",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

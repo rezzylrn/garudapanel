@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "Terraria",
+  "author": "GarudaPanel",
+  "description": "Terraria dedicated server (TShock-ready).",
+  "features": null,
+  "docker_images": {
+    "Terraria": "ghcr.io/parkervcp/yolks:terraria"
+  },
+  "file_denylist": [],
+  "startup": "./TerrariaServer -config serverconfig.txt",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\n# Unduh Terraria server terbaru (versi di URL berubah tiap rilis).\ncurl -fsSL -o terraria.zip \"https://terraria.org/api/download/pc-dedicated-server\"\nunzip -o terraria.zip\ncp -r */Linux/* . 2>/dev/null || true\nchmod +x TerrariaServer\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "World Name",
+      "description": "Nama world.",
+      "env_variable": "WORLD_NAME",
+      "default_value": "world",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    },
+    {
+      "name": "Max Players",
+      "description": "Slot pemain.",
+      "env_variable": "MAX_PLAYERS",
+      "default_value": "8",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "Static Website",
+  "author": "GarudaPanel",
+  "description": "Website statis (HTML/CSS/JS) \u2014 python http.server.",
+  "features": null,
+  "docker_images": {
+    "Python 3.12": "ghcr.io/parkervcp/yolks:python_3.12"
+  },
+  "file_denylist": [],
+  "startup": "python3 -m http.server {{SERVER_PORT}}",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "Serving HTTP",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\necho 'Upload file statis kamu lewat file manager.'\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Document Root",
+      "description": "Folder document root.",
+      "env_variable": "DOC_ROOT",
+      "default_value": ".",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

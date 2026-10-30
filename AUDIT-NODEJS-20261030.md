@@ -81,3 +81,10 @@ lalu interupsi: "kasih edit file juga di file managernya".
 - E2E penuh `console-verify.py`: ALL PASS. Server dibiarkan RUNNING.
 - Satu false alarm saat debug: 2 sesi WS pasca-stop gagal karena BUG SCRIPT TES
   (token diambil dari key `data` yang tidak ada → token null → 401). Bukan bug panel.
+
+## 11. Egg library, node Activate, grafik traffic, console transparan (2026-10-30)
+- **Egg library** (`eggs/`, generator `generate.py`): 15 egg PTDL_v2 — Minecraft (Paper, Bedrock, Forge), Node.js (Node.js, Discord.js Bot), Python (Python, Django, Flask), Web Hosting (PHP Website, Static Website, Laravel), Game Servers (Terraria, Valheim, Rust, FiveM). Semua ter-import ke live DB (15/15, 0 skip). Aturan done-string: kosong kalau tidak pasti (lihat AGENTS.md).
+- **Node Activate**: endpoint baru `POST /api/admin/nodes/{id}/join-token` (Go, token segar 15 menit) + tombol Activate di halaman Nodes untuk node offline → modal berisi join token + script Docker (alpine + binary release, jalan hari ini) + script binary langsung, tombol copy. Panel URL diambil dari `ws_url.txt` (tunnel API Go).
+- **Grafik traffic**: canvas hand-rolled di halaman console (tanpa dependensi) — RX biru / TX hijau, 90 sampel terakhir (~3 menit), rate dihitung dari delta net kumulatif stat frame. Terverifikasi: stat frame mengalir (console-verify ALL PASS).
+- **Console transparan + rapih**: xterm `allowTransparency` + theme background transparan, kartu console `.glass` (backdrop blur), tombol Clear, toolbar console-bar dengan spacer. `Dockerfile.daemon` ditambahkan ke repo (image proper; perintah Docker di modal tidak butuh image custom).
+- **Verifikasi**: `go vet` + `go test ./...` lolos; join-token endpoint 200 + token 15 menit; modal Activate ter-render; egg baru muncul di dropdown New Server; console-verify ALL PASS; server dibiarkan RUNNING.

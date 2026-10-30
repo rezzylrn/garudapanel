@@ -304,6 +304,27 @@ tbody tr:hover td { background: var(--surface-hover); }
 #terminal { background: #000; border-radius: var(--r-lg); padding: var(--s3); height: 480px; overflow: hidden; width: 100%; }
 #terminal .xterm { max-width: 100%; }
 .console-bar { display: flex; gap: var(--s2); margin-bottom: var(--s3); align-items: center; flex-wrap: wrap; }
+.console-bar-spacer { flex: 1; }
+
+/* ============ Kartu kaca (console transparan) ============ */
+.card.glass {
+  background: rgba(61, 74, 89, 0.45);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.console-card { padding: var(--s2); }
+.console-card .terminal-wrap { background: transparent; border: none; }
+
+/* ============ Grafik traffic ============ */
+.traffic-legend {
+  display: flex; gap: var(--s4); flex-wrap: wrap; align-items: center;
+  font-size: 12.5px; color: var(--text-dim); margin-bottom: var(--s2);
+}
+.traffic-legend strong { color: var(--text); font-weight: 600; }
+.traffic-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.traffic-note { margin-left: auto; color: var(--text-mute); font-size: 12px; }
+.traffic-wrap { width: 100%; min-width: 0; }
+.traffic-wrap canvas { width: 100%; display: block; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 .status-dot.on { background: var(--ok); box-shadow: 0 0 8px rgba(52, 211, 153, 0.6); }
 .status-dot.off { background: var(--text-mute); }
@@ -428,6 +449,15 @@ tbody tr:hover td { background: var(--surface-hover); }
 }
 .terminal-wrap #terminal { width: 100%; max-width: 100%; }
 .terminal-wrap .xterm-viewport { overflow-y: auto; }
+
+/* ============ Command box (modal Activate) ============ */
+.cmd-box {
+  background: var(--bg-soft); border: 1px solid var(--border-soft);
+  border-radius: var(--r-md); padding: var(--s3);
+  font-family: var(--mono); font-size: 12px; line-height: 1.6;
+  color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 180px; overflow-y: auto;
+}
 
 /* ============ Files toolbar ============ */
 .files-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }

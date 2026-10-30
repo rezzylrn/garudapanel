@@ -1,0 +1,56 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "Forge",
+  "author": "GarudaPanel",
+  "description": "Minecraft Java server dengan mod Forge.",
+  "features": null,
+  "docker_images": {
+    "Java 17": "ghcr.io/parkervcp/yolks:java_17",
+    "Java 21": "ghcr.io/parkervcp/yolks:java_21"
+  },
+  "file_denylist": [],
+  "startup": "java -Xms128M -XX:MaxRAMPercentage=95.0 -jar {{SERVER_JARFILE}} nogui",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "Done (",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "stop"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\nMC=$(echo \"${FORGE_VERSION}\" | cut -d- -f1)\nFV=$(echo \"${FORGE_VERSION}\" | cut -d- -f2-)\ncurl -fsSL -o forge-installer.jar \"https://maven.minecraftforge.net/net/minecraftforge/forge/${MC}-${FV}/forge-${MC}-${FV}-installer.jar\"\njava -jar forge-installer.jar --installServer\nrm forge-installer.jar\necho \"eula=true\" > eula.txt\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Server Jar File",
+      "description": "Nama file jar Forge.",
+      "env_variable": "SERVER_JARFILE",
+      "default_value": "forge-1.20.1-47.2.0-universal.jar",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    },
+    {
+      "name": "Forge Version",
+      "description": "Versi Forge (mc-forge).",
+      "env_variable": "FORGE_VERSION",
+      "default_value": "1.20.1-47.2.0",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

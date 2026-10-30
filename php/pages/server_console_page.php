@@ -55,14 +55,32 @@ $memLimitMB = (int)($s['memory_mb'] ?? 0);
 <div class="console-bar">
   <span class="status-dot <?= $st === 'running' ? 'on' : 'off' ?>" id="conn-dot"></span>
   <span id="conn-status" class="status-line">Connecting…</span>
+  <span class="console-bar-spacer"></span>
+  <button class="btn small" id="console-clear" type="button" title="Clear console"><?= icon('eraser', 13) ?> Clear</button>
 </div>
-<div class="terminal-wrap"><div id="terminal"></div></div>
+<div class="card glass console-card">
+  <div class="terminal-wrap"><div id="terminal"></div></div>
+</div>
+<div class="card" style="margin-top:16px">
+  <h3><?= icon('network', 15) ?> Network traffic</h3>
+  <div class="traffic-legend">
+    <span><span class="traffic-dot" style="background:#60a5fa"></span> Download <strong id="traffic-rx">—</strong></span>
+    <span><span class="traffic-dot" style="background:#4ade80"></span> Upload <strong id="traffic-tx">—</strong></span>
+    <span class="traffic-note">last 3 min · live from server stats</span>
+  </div>
+  <div class="traffic-wrap"><canvas id="traffic-chart" height="120"></canvas></div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@5.3.0/lib/xterm-addon-fit.min.js"></script>
 <script>
 (function() {
-  const term = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: '#000000' } });
+  const term = new Terminal({
+    cursorBlink: true, fontSize: 13,
+    allowTransparency: true,
+    theme: { background: 'rgba(0, 0, 0, 0)', foreground: '#e6eaf0', cursor: '#60a5fa' },
+  });
   term.open(document.getElementById('terminal'));
+  document.getElementById('console-clear').addEventListener('click', function () { term.clear(); });
   // FitAddon (pola Pterodactyl Console.tsx): terminal menyesuaikan lebar
   // container — tanpa ini, xterm 80 kolom default terpotong / menggeser
   // halaman di layar mobile. Fallback: tetap jalan tanpa fit bila CDN gagal.
@@ -110,10 +128,80 @@ $memLimitMB = (int)($s['memory_mb'] ?? 0);
     const rx = d.net_rx_kb || 0, tx = d.net_tx_kb || 0;
     document.getElementById('st-net').textContent =
       (rx <= 0 && tx <= 0) ? '—' : '↓ ' + fmtKB(rx) + ' · ↑ ' + fmtKB(tx);
+    pushTraffic(d);
     if (d.state) {
       dotEl.className = 'status-dot ' + (d.state === 'running' ? 'on' : 'off');
       if (window.__gpSetStatus) window.__gpSetStatus(d.state);
     }
+  }
+  // --- Grafik traffic live (canvas, tanpa dependensi) ---
+  // Stat frame membawa net_rx_kb/net_tx_kb KUMULATIF sejak proses start,
+  // jadi rate = delta antar frame / dt (frame datang tiap ~2 detik).
+  const traffic = { rx: [], tx: [], lastRx: null, lastTx: null, lastT: 0, max: 90 };
+  const chartEl = document.getElementById('traffic-chart');
+  const chartCtx = chartEl ? chartEl.getContext('2d') : null;
+  function fmtRate(kbs) {
+    if (kbs == null || isNaN(kbs)) return '—';
+    return kbs >= 1024 ? (kbs / 1024).toFixed(1) + ' MB/s' : Math.round(kbs) + ' KB/s';
+  }
+  function pushTraffic(d) {
+    if (!d || chartEl == null) return;
+    const now = Date.now() / 1000;
+    const rx = d.net_rx_kb || 0, tx = d.net_tx_kb || 0;
+    if (traffic.lastRx != null && now > traffic.lastT) {
+      const dt = now - traffic.lastT;
+      const rRx = Math.max(0, (rx - traffic.lastRx) / dt);
+      const rTx = Math.max(0, (tx - traffic.lastTx) / dt);
+      traffic.rx.push(rRx); traffic.tx.push(rTx);
+      if (traffic.rx.length > traffic.max) { traffic.rx.shift(); traffic.tx.shift(); }
+      document.getElementById('traffic-rx').textContent = fmtRate(rRx);
+      document.getElementById('traffic-tx').textContent = fmtRate(rTx);
+      drawTraffic();
+    }
+    traffic.lastRx = rx; traffic.lastTx = tx; traffic.lastT = now;
+  }
+  function drawTraffic() {
+    if (!chartCtx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = chartEl.clientWidth, h = 120;
+    if (chartEl.width !== w * dpr || chartEl.height !== h * dpr) {
+      chartEl.width = w * dpr; chartEl.height = h * dpr;
+    }
+    const ctx = chartCtx;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const padL = 34, padR = 6, padT = 8, padB = 18;
+    const iw = w - padL - padR, ih = h - padT - padB;
+    let max = 10;
+    traffic.rx.concat(traffic.tx).forEach(function (v) { if (v > max) max = v; });
+    max = Math.ceil(max * 1.2);
+    // grid + label sumbu
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.fillStyle = '#6f7d8c';
+    ctx.font = '10px sans-serif'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 3; i++) {
+      const y = padT + ih - ih * i / 3;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+      ctx.fillText(fmtRate(max * i / 3), 0, y + 3);
+    }
+    function line(data, color) {
+      if (data.length < 2) return;
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
+      data.forEach(function (v, i) {
+        const x = padL + iw * i / (traffic.max - 1);
+        const y = padT + ih - ih * Math.min(1, v / max);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+    line(traffic.rx, '#60a5fa');
+    line(traffic.tx, '#4ade80');
+    ctx.fillStyle = '#6f7d8c';
+    ctx.fillText('now', w - padR - 22, h - 5);
+    ctx.fillText('−3 min', padL, h - 5);
+  }
+  if (chartEl) {
+    window.addEventListener('resize', drawTraffic);
+    if (window.ResizeObserver) new ResizeObserver(drawTraffic).observe(chartEl.parentElement);
   }
   function refreshDisk() {
     fetch('/?p=server/usage&id=<?= $id ?>', { credentials: 'same-origin' })

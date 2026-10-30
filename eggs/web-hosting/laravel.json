@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "Laravel",
+  "author": "GarudaPanel",
+  "description": "Web app Laravel (artisan serve).",
+  "features": null,
+  "docker_images": {
+    "PHP 8.2": "ghcr.io/parkervcp/yolks:php_8.2"
+  },
+  "file_denylist": [],
+  "startup": "php artisan serve --host 0.0.0.0 --port {{SERVER_PORT}}",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "Server running on",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\nif [ -f composer.json ]; then composer install --no-dev --optimize-autoloader; fi\n[ -f .env.example ] && [ ! -f .env ] && cp .env.example .env && php artisan key:generate\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Requirements",
+      "description": "Jalankan composer install saat install.",
+      "env_variable": "COMPOSER_INSTALL",
+      "default_value": "1",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

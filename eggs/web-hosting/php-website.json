@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "PHP Website",
+  "author": "GarudaPanel",
+  "description": "Website PHP standar (shared hosting style) \u2014 php built-in server.",
+  "features": null,
+  "docker_images": {
+    "PHP 8.2": "ghcr.io/parkervcp/yolks:php_8.2"
+  },
+  "file_denylist": [],
+  "startup": "php -S 0.0.0.0:{{SERVER_PORT}} -t {{DOC_ROOT}}",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "Development Server",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\necho 'Upload file PHP kamu lewat file manager.'\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Document Root",
+      "description": "Folder document root.",
+      "env_variable": "DOC_ROOT",
+      "default_value": ".",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

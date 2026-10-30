@@ -1,0 +1,13 @@
+# GarudaPanel daemon image — build & push:
+#   docker build -f Dockerfile.daemon -t ghcr.io/rezzylrn/garudapanel-daemon:latest .
+#   docker push ghcr.io/rezzylrn/garudapanel-daemon:latest
+# Lalu jalankan dari tombol Activate di halaman Nodes (panel sudah membuat
+# join token-nya; perintah docker run lengkap tampil di modal).
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY garuda /usr/local/bin/garuda
+RUN chmod +x /usr/local/bin/garuda
+VOLUME ["/var/lib/garudapanel"]
+ENTRYPOINT ["/usr/local/bin/garuda", "daemon"]
+CMD ["--data", "/var/lib/garudapanel"]

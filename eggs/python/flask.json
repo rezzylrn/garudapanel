@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "Flask",
+  "author": "GarudaPanel",
+  "description": "Web app Flask (gunicorn).",
+  "features": null,
+  "docker_images": {
+    "Python 3.12": "ghcr.io/parkervcp/yolks:python_3.12"
+  },
+  "file_denylist": [],
+  "startup": "gunicorn --bind 0.0.0.0:{{SERVER_PORT}} {{APP_MODULE}}:app",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "Listening at",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\npip install gunicorn\n[ -f \"${REQUIREMENTS_FILE:-requirements.txt}\" ] && pip install -r \"${REQUIREMENTS_FILE:-requirements.txt}\"\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "App Module",
+      "description": "Modul Flask (tanpa .py).",
+      "env_variable": "APP_MODULE",
+      "default_value": "app",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    },
+    {
+      "name": "Requirements File",
+      "description": "File requirements pip.",
+      "env_variable": "REQUIREMENTS_FILE",
+      "default_value": "requirements.txt",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

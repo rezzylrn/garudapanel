@@ -123,6 +123,42 @@ func (s *Server) handleNodesCreate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Buat join token BARU untuk node yang sudah ada (dipakai tombol Activate:
+// token lama hanya tampil sekali saat node dibuat, jadi node offline yang
+// tokennya hilang/kedaluwarsa butuh token segar). Token lama node ini dihapus
+// dulu supaya tidak menumpuk; token baru sekali pakai, 15 menit.
+func (s *Server) handleNodesJoinToken(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var exists int
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM nodes WHERE id=?`, id).Scan(&exists); err != nil || exists == 0 {
+		writeErr(w, 404, "node not found")
+		return
+	}
+	joinRaw, joinHash, err := auth.NewToken()
+	if err != nil {
+		writeErr(w, 500, "token gen failed")
+		return
+	}
+	if _, err := s.DB.Exec(`DELETE FROM node_join_tokens WHERE node_id=?`, id); err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	if _, err := s.DB.Exec(`INSERT INTO node_join_tokens (token_hash, node_id, expires_at) VALUES (?,?,?)`,
+		joinHash, id, time.Now().Add(joinTokenTTL).Unix()); err != nil {
+		writeErr(w, 500, "db error")
+		return
+	}
+	actor := auth.SessionFrom(r.Context())
+	activity.Log(s.DB, actor.UserID, 0, "admin.nodes.join_token", fmt.Sprintf("node_id=%d", id))
+	writeJSON(w, 200, map[string]any{
+		"join_token":            joinRaw, // hanya tampil sekali
+		"join_token_expires_in": int(joinTokenTTL.Seconds()),
+	})
+}
+
 func (s *Server) handleNodesGet(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
 	if !ok {

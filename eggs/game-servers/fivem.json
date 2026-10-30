@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "FiveM",
+  "author": "GarudaPanel",
+  "description": "FiveM (GTA V) server \u2014 FXServer.",
+  "features": null,
+  "docker_images": {
+    "FiveM": "ghcr.io/parkervcp/yolks:fivem"
+  },
+  "file_denylist": [],
+  "startup": "bash run.sh +exec server.cfg",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\ncurl -fsSL -o fx.tar.xz \"https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/latest/fx.tar.xz\"\ntar -xf fx.tar.xz && rm fx.tar.xz\ncat > run.sh <<'EOF'\n#!/bin/bash\nexec /mnt/server/alpine/opt/cfx-server/FXServer +set citizen_dir /mnt/server/alpine/opt/cfx-server/citizen/ \"$@\"\nEOF\nchmod +x run.sh\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "License Key",
+      "description": "License key dari keymaster.fivem.net.",
+      "env_variable": "FIVEM_LICENSE_KEY",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

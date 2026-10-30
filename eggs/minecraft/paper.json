@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "Paper",
+  "author": "GarudaPanel",
+  "description": "Minecraft Java server (PaperMC) \u2014 cepat, plugin-friendly.",
+  "features": null,
+  "docker_images": {
+    "Java 21": "ghcr.io/parkervcp/yolks:java_21",
+    "Java 17": "ghcr.io/parkervcp/yolks:java_17"
+  },
+  "file_denylist": [],
+  "startup": "java -Xms128M -XX:MaxRAMPercentage=95.0 -Dterminal.jline=false -Dterminal.ansi=true -jar {{SERVER_JARFILE}} nogui",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "Done (",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "stop"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\n# Paper install: unduh jar terbaru dari PaperMC API.\ncd /mnt/server\nMC=${MINECRAFT_VERSION:-1.21.1}\nif [ \"${BUILD_NUMBER}\" = \"latest\" ]; then\n  BUILD=$(curl -s \"https://api.papermc.io/v2/projects/paper/versions/${MC}/builds\" | python3 -c \"import sys,json;print(json.load(sys.stdin)['builds'][-1]['build'])\" 2>/dev/null || echo \"\")\nelse\n  BUILD=${BUILD_NUMBER}\nfi\ncurl -fsSL -o server.jar \"https://api.papermc.io/v2/projects/paper/versions/${MC}/builds/${BUILD}/downloads/paper-${MC}-${BUILD}.jar\"\necho \"eula=true\" > eula.txt\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Server Jar File",
+      "description": "Nama file jar server.",
+      "env_variable": "SERVER_JARFILE",
+      "default_value": "server.jar",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    },
+    {
+      "name": "Minecraft Version",
+      "description": "Versi Minecraft.",
+      "env_variable": "MINECRAFT_VERSION",
+      "default_value": "1.21.1",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    },
+    {
+      "name": "Paper Build",
+      "description": "Nomor build Paper (latest = terbaru).",
+      "env_variable": "BUILD_NUMBER",
+      "default_value": "latest",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

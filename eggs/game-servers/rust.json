@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T00:00:00+07:00",
+  "name": "Rust",
+  "author": "GarudaPanel",
+  "description": "Rust dedicated server (Facepunch).",
+  "features": null,
+  "docker_images": {
+    "Rust": "ghcr.io/parkervcp/yolks:rust"
+  },
+  "file_denylist": [],
+  "startup": "./RustDedicated -batchmode +server.port {{SERVER_PORT}} +server.hostname \"{{SERVER_NAME}}\" +server.identity \"server\" +server.maxplayers {{MAX_PLAYERS}} +server.worldsize 3000 +server.seed 12345",
+  "config": {
+    "files": "{}",
+    "startup": {
+      "done": "Server startup complete",
+      "user_interaction": []
+    },
+    "logs": {
+      "custom": false,
+      "location": "logs/latest.log"
+    },
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\ncd /mnt/server\nsteamcmd +force_install_dir /mnt/server +login anonymous +app_update 258550 validate +quit\n",
+      "container": "ghcr.io/parkervcp/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Server Name",
+      "description": "Nama server.",
+      "env_variable": "SERVER_NAME",
+      "default_value": "Garuda Rust",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    },
+    {
+      "name": "Max Players",
+      "description": "Slot pemain.",
+      "env_variable": "MAX_PLAYERS",
+      "default_value": "100",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:191"
+    }
+  ]
+}

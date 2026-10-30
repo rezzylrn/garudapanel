@@ -64,6 +64,7 @@ func Routes(s *Server) http.Handler {
 		ar.Patch("/nodes/{id}", s.handleNodesUpdate)
 		ar.Delete("/nodes/{id}", s.handleNodesDelete)
 		ar.Post("/nodes/{id}/revoke-token", s.handleNodesRevokeToken)
+		ar.Post("/nodes/{id}/join-token", s.handleNodesJoinToken)
 
 		ar.Get("/allocations", s.handleAllocationsList)
 		ar.Get("/allocations/{id}", s.handleAllocationsList) // ?node_id filter via path

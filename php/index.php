@@ -68,6 +68,25 @@ if ($page === 'server/usage') {
     exit;
 }
 
+// JSON join token segar untuk tombol Activate node (sekali pakai, 15 menit).
+if ($page === 'admin/node-join-token') {
+    if (!gp_is_admin()) { http_response_code(403); echo json_encode(['ok' => false]); exit; }
+    $nid = (int)($_GET['id'] ?? 0);
+    $r = $nid > 0 ? gp_api('POST', "/api/admin/nodes/$nid/join-token", null, gp_token()) : ['ok' => false];
+    header('Content-Type: application/json');
+    if (empty($r['ok'])) { http_response_code(500); echo json_encode(['ok' => false, 'error' => $r['error'] ?? 'failed']); exit; }
+    // URL panel (API Go) yang harus dijangkau daemon: tunnel WS bila ada.
+    $panelUrl = '';
+    $wsFile = __DIR__ . '/ws_url.txt';
+    if (is_readable($wsFile)) { $panelUrl = trim((string)file_get_contents($wsFile)); }
+    if ($panelUrl === '') { $panelUrl = 'http://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1:8080'); }
+    echo json_encode(['ok' => true,
+        'join_token' => $r['data']['join_token'] ?? '',
+        'expires_in' => (int)($r['data']['join_token_expires_in'] ?? 900),
+        'panel_url' => $panelUrl]);
+    exit;
+}
+
 // JSON alokasi bebas per node untuk dropdown form New server.
 if ($page === 'admin/node-allocations') {
     if (!gp_is_admin()) { http_response_code(403); echo json_encode(['ok' => false]); exit; }
