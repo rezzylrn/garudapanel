@@ -120,6 +120,8 @@ require __DIR__ . '/../../partials/header.php';
 
   document.querySelectorAll('[data-activate-node]').forEach(function (btn) {
     btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      btn.disabled = true;
       var id = btn.getAttribute('data-activate-node');
       var name = btn.getAttribute('data-node-name');
       title.textContent = 'Activate node — ' + name;
@@ -143,7 +145,8 @@ require __DIR__ . '/../../partials/header.php';
           document.getElementById('activate-token').value = '';
           document.getElementById('activate-docker').textContent = 'Gagal membuat join token, coba lagi.';
           document.getElementById('activate-binary').textContent = '';
-        });
+        })
+        .finally(function () { btn.disabled = false; });
     });
   });
 })();

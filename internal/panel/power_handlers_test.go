@@ -59,3 +59,19 @@ func TestPowerAllowed(t *testing.T) {
 		}
 	}
 }
+
+func TestPowerCooldownRemaining(t *testing.T) {
+	now := time.Now()
+	if d := powerCooldownRemaining(time.Time{}, now); d != 0 {
+		t.Errorf("never acted: got %v, want 0", d)
+	}
+	if d := powerCooldownRemaining(now.Add(-10*time.Second), now); d != 0 {
+		t.Errorf("10s ago: got %v, want 0", d)
+	}
+	if d := powerCooldownRemaining(now.Add(-1*time.Second), now); d <= 0 || d > powerCooldown {
+		t.Errorf("1s ago: got %v, want (0, %v]", d, powerCooldown)
+	}
+	if d := powerCooldownRemaining(now, now); d != powerCooldown {
+		t.Errorf("just now: got %v, want %v", d, powerCooldown)
+	}
+}

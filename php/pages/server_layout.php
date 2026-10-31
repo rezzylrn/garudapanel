@@ -88,6 +88,7 @@ function gp_server_head(array $s, int $id, string $activeTab): void {
       var startingSince = status === 'starting' ? Date.now() : 0;
       var pollTimer = null;
       var busy = false;
+      var lastPowerSent = 0; // cooldown klik: backend menolak power <3 detik (429)
 
       var badgeEl = document.getElementById('server-badge');
       var stopBtn = document.getElementById('btn-stop');
@@ -210,9 +211,11 @@ function gp_server_head(array $s, int $id, string $activeTab): void {
         var reason = blockedReason(action);
         if (reason) { toast(reason, 'error'); return; }
         if (busy) return;
+        if (Date.now() - lastPowerSent < 3000) { toast('Tunggu sebentar sebelum aksi berikutnya.', 'error'); return; }
         confirmDialog(CONFIRM[action]).then(function (yes) {
           if (!yes) return;
           busy = true;
+          lastPowerSent = Date.now();
           var u = new URL(location.href);
           u.searchParams.set('action', action);
           fetch(u.toString(), { method: 'POST', credentials: 'same-origin' })

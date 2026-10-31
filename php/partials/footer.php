@@ -24,7 +24,23 @@
   }
   document.addEventListener('DOMContentLoaded', function () { labelTables(document); });
   labelTables(document);
-  document.body.addEventListener('htmx:afterSwap', function (ev) { labelTables(ev.detail.target); });
+  document.body.addEventListener('htmx:afterSwap', function (ev) { labelTables(ev.target); });
+
+  // Anti double-submit: sekali form POST terkirim, tombol submit-nya
+  // dikunci 5 detik supaya klik beruntun tidak mengirim request ganda
+  // (create server dobel, upload dobel, dsb). Kunci dilepas otomatis
+  // kalau halaman tidak pindah (mis. validasi gagal / request ajax).
+  document.addEventListener('submit', function (ev) {
+    var f = ev.target;
+    if (!f || f.dataset.gpSubmitted) { ev.preventDefault(); return; }
+    f.dataset.gpSubmitted = '1';
+    var btns = f.querySelectorAll('button[type="submit"], input[type="submit"]');
+    btns.forEach(function (b) { b.disabled = true; });
+    setTimeout(function () {
+      delete f.dataset.gpSubmitted;
+      btns.forEach(function (b) { b.disabled = false; });
+    }, 5000);
+  });
 })();
 </script>
 </body>

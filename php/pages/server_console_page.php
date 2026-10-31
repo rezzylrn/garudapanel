@@ -32,24 +32,29 @@ $memLimitMB = (int)($s['memory_mb'] ?? 0);
   <div class="stat mini">
     <span class="label"><?= icon('clock', 14) ?> Uptime</span>
     <span class="value" id="st-uptime">—</span>
+    <canvas class="spark" id="spark-uptime" height="36"></canvas>
   </div>
   <div class="stat mini">
     <span class="label"><?= icon('cpu', 14) ?> CPU Load</span>
     <span class="value" id="st-cpu">—</span>
+    <canvas class="spark" id="spark-cpu" height="36"></canvas>
   </div>
   <div class="stat mini">
     <span class="label"><?= icon('memory', 14) ?> Memory</span>
     <span class="value" id="st-mem">—</span>
+    <canvas class="spark" id="spark-mem" height="36"></canvas>
     <span class="meter"><span id="st-mem-bar" style="width:0%"></span></span>
   </div>
   <div class="stat mini">
     <span class="label"><?= icon('hdd', 14) ?> Disk</span>
     <span class="value" id="st-disk">—</span>
+    <canvas class="spark" id="spark-disk" height="36"></canvas>
     <span class="meter"><span id="st-disk-bar" style="width:0%"></span></span>
   </div>
   <div class="stat mini">
     <span class="label"><?= icon('network', 14) ?> Network</span>
     <span class="value mono" id="st-net" style="font-size:13px">—</span>
+    <canvas class="spark" id="spark-net" height="36"></canvas>
   </div>
 </div>
 <div class="console-bar">
@@ -119,9 +124,12 @@ $memLimitMB = (int)($s['memory_mb'] ?? 0);
   function applyStats(d) {
     if (!d) return;
     document.getElementById('st-uptime').textContent = fmtUptime(d.uptime_seconds);
+    if (sparkUptime) sparkUptime.push(d.uptime_seconds || 0);
     document.getElementById('st-cpu').textContent =
       (d.cpu_percent == null ? '—' : d.cpu_percent.toFixed(1) + '%');
+    if (sparkCpu) sparkCpu.push(d.cpu_percent || 0);
     const memUsed = d.mem_used_mb || 0, memLimit = d.mem_limit_mb || memLimitMB;
+    if (sparkMem) sparkMem.push(memUsed);
     document.getElementById('st-mem').textContent =
       fmtMB(memUsed) + (memLimit ? ' / ' + fmtMB(memLimit) : '');
     setBar(document.getElementById('st-mem-bar'), memLimit ? memUsed / memLimit * 100 : 0);
@@ -134,6 +142,93 @@ $memLimitMB = (int)($s['memory_mb'] ?? 0);
       if (window.__gpSetStatus) window.__gpSetStatus(d.state);
     }
   }
+  // --- Sparkline: angka di atas, grafik di bawah (satu per stat) ---
+  // Buffer 60 sampel (~2 menit, frame stat tiap 2 detik). Uptime naik terus
+  // (garis miring ke atas = visual runtime); CPU skala tetap 0-100;
+  // Memory/Disk skala = limit; Network dua garis (RX/TX).
+  function makeSpark(id, color, fixedMax) {
+    var el = document.getElementById(id);
+    if (!el) return null;
+    var ctx = el.getContext('2d');
+    var data = [];
+    function draw() {
+      var dpr = window.devicePixelRatio || 1;
+      var w = el.clientWidth, h = 36;
+      if (!w) return;
+      if (el.width !== w * dpr || el.height !== h * dpr) { el.width = w * dpr; el.height = h * dpr; }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      var max = fixedMax || 1;
+      if (!fixedMax) { data.forEach(function (v) { if (v > max) max = v; }); max *= 1.15; }
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.beginPath(); ctx.moveTo(0, h - 1.5); ctx.lineTo(w, h - 1.5); ctx.stroke();
+      if (data.length < 2) return;
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
+      data.forEach(function (v, i) {
+        var x = w * i / 59, y = h - 2 - (h - 6) * Math.min(1, v / max);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
+      ctx.fillStyle = color + '22'; ctx.fill();
+    }
+    return {
+      push: function (v) {
+        data.push(v == null || isNaN(v) ? 0 : v);
+        if (data.length > 60) data.shift();
+        draw();
+      },
+      draw: draw
+    };
+  }
+  function makeSparkDual(id, colorA, colorB) {
+    var el = document.getElementById(id);
+    if (!el) return null;
+    var ctx = el.getContext('2d');
+    var a = [], b = [];
+    function draw() {
+      var dpr = window.devicePixelRatio || 1;
+      var w = el.clientWidth, h = 36;
+      if (!w) return;
+      if (el.width !== w * dpr || el.height !== h * dpr) { el.width = w * dpr; el.height = h * dpr; }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      var max = 1;
+      a.concat(b).forEach(function (v) { if (v > max) max = v; });
+      max *= 1.15;
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.beginPath(); ctx.moveTo(0, h - 1.5); ctx.lineTo(w, h - 1.5); ctx.stroke();
+      [[a, colorA], [b, colorB]].forEach(function (pair) {
+        var data = pair[0];
+        if (data.length < 2) return;
+        ctx.strokeStyle = pair[1]; ctx.lineWidth = 1.5; ctx.beginPath();
+        data.forEach(function (v, i) {
+          var x = w * i / 59, y = h - 2 - (h - 6) * Math.min(1, v / max);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      });
+    }
+    return {
+      push: function (va, vb) {
+        a.push(va || 0); b.push(vb || 0);
+        if (a.length > 60) { a.shift(); b.shift(); }
+        draw();
+      },
+      draw: draw
+    };
+  }
+  var sparkUptime = makeSpark('spark-uptime', '#94a3b8', null);
+  var sparkCpu = makeSpark('spark-cpu', '#60a5fa', 100);
+  var sparkMem = makeSpark('spark-mem', '#4ade80', memLimitMB > 0 ? memLimitMB : null);
+  var sparkDisk = makeSpark('spark-disk', '#facc15', diskLimitMB > 0 ? diskLimitMB : null);
+  var sparkNet = makeSparkDual('spark-net', '#60a5fa', '#4ade80');
+  var allSparks = [sparkUptime, sparkCpu, sparkMem, sparkDisk, sparkNet];
+  if (window.ResizeObserver) {
+    var strip = document.querySelector('.stat-strip');
+    if (strip) new ResizeObserver(function () { allSparks.forEach(function (s) { if (s) s.draw(); }); }).observe(strip);
+  }
+
   // --- Grafik traffic live (canvas, tanpa dependensi) ---
   // Stat frame membawa net_rx_kb/net_tx_kb KUMULATIF sejak proses start,
   // jadi rate = delta antar frame / dt (frame datang tiap ~2 detik).
@@ -156,6 +251,7 @@ $memLimitMB = (int)($s['memory_mb'] ?? 0);
       if (traffic.rx.length > traffic.max) { traffic.rx.shift(); traffic.tx.shift(); }
       document.getElementById('traffic-rx').textContent = fmtRate(rRx);
       document.getElementById('traffic-tx').textContent = fmtRate(rTx);
+      if (sparkNet) sparkNet.push(rRx, rTx);
       drawTraffic();
     }
     traffic.lastRx = rx; traffic.lastTx = tx; traffic.lastT = now;
@@ -212,6 +308,7 @@ $memLimitMB = (int)($s['memory_mb'] ?? 0);
         document.getElementById('st-disk').textContent =
           fmtMB(usedMB) + (limitMB ? ' / ' + fmtMB(limitMB) : '');
         setBar(document.getElementById('st-disk-bar'), limitMB ? usedMB / limitMB * 100 : 0);
+        if (sparkDisk) sparkDisk.push(usedMB);
       })
       .catch(function () {});
   }

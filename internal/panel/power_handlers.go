@@ -73,10 +73,31 @@ func powerAllowed(status, action string, lastStart time.Time, now time.Time) (bo
 
 // lastPowerStart: kapan terakhir perintah start/restart diteruskan per server
 // (menutup jendela balapan sebelum daemon melaporkan status "starting").
+// lastPowerAction: kapan terakhir perintah power APA PUN diterima per server —
+// cooldown anti-spam (lihat powerCooldown): tanpa ini, klik beruntun bisa
+// lolos guard dua-duanya (keduanya baca status "offline" sebelum salah satu
+// sempat mengubahnya) dan daemon menerima dua perintah start bersamaan.
 var (
 	lastPowerStartMu sync.Mutex
 	lastPowerStart   = map[string]time.Time{}
+	lastPowerAction  = map[string]time.Time{}
 )
+
+// powerCooldown: jarak minimum antar aksi power pada server yang sama.
+// Dicek + dicatat dalam SATU critical section dengan guard, supaya dua
+// request bersamaan tidak bisa lolos dua-duanya.
+const powerCooldown = 3 * time.Second
+
+// powerCooldownRemaining: sisa cooldown (0 = boleh jalan).
+func powerCooldownRemaining(last, now time.Time) time.Duration {
+	if last.IsZero() {
+		return 0
+	}
+	if d := powerCooldown - now.Sub(last); d > 0 {
+		return d
+	}
+	return 0
+}
 
 // handleServerPower: POST /api/servers/:id/power
 func (s *Server) handleServerPower(w http.ResponseWriter, r *http.Request) {
@@ -115,12 +136,25 @@ func (s *Server) handleServerPower(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// State guard: tolak aksi yang tidak masuk akal untuk status saat ini.
+	// State guard + cooldown anti-spam: dicek dan dicatat dalam satu
+	// critical section, supaya dua request bersamaan tidak bisa lolos
+	// dua-duanya sebelum salah satu sempat mengubah state.
+	now := time.Now()
 	lastPowerStartMu.Lock()
 	lastStart := lastPowerStart[uuid]
+	lastAction := lastPowerAction[uuid]
+	guardOK, reason := powerAllowed(status, req.Action, lastStart, now)
+	coolRem := powerCooldownRemaining(lastAction, now)
+	if guardOK && coolRem == 0 {
+		lastPowerAction[uuid] = now
+	}
 	lastPowerStartMu.Unlock()
-	if ok, reason := powerAllowed(status, req.Action, lastStart, time.Now()); !ok {
+	if !guardOK {
 		writeErr(w, 409, reason)
+		return
+	}
+	if coolRem > 0 {
+		writeErr(w, 429, "too many power requests — wait a moment and try again")
 		return
 	}
 
